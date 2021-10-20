@@ -5,33 +5,48 @@ import os
 import shutil
 import glob
 
-def getVideoFrames(path, deleteFrames=False):
+
+def generate_video_frames(path, from_scratch=False):
     frames_dir = "assets/frames"
 
-    # delete previous saved frames
-    if deleteFrames:
+    # delete previous saved frames images
+    if from_scratch:
         if os.path.exists(frames_dir):
             try:
                 shutil.rmtree(frames_dir)
                 os.mkdir(frames_dir)
             except OSError as e:
                 print("Error: %s - %s." % (e.filename, e.strerror))
+        else:
+            os.mkdir(frames_dir)
 
     # Opens the Video file
     cap = cv2.VideoCapture(path)
-    i = 0
+    i = gen = skip = 0
     print('Generating frames.. \n')
     while (cap.isOpened()):
         ret, frame = cap.read()
         if ret == False:
             break
-        cv2.imwrite('assets/frames/frame_' + str(i) + '.jpg', frame)
+        frame_path = 'assets/frames/frame_' + str(i) + '.png'
+        # skip already generated frames
+        if not from_scratch:
+            if os.path.exists(frame_path):
+                i += 1
+                skip += 1
+                break
+        cv2.imwrite(frame_path, frame)
         i += 1
-    print('Generated {:d} frames.. \n'.format(i))
+        gen += 1
+    print('Generated {:d} frames.. \n'.format(gen))
+    if not from_scratch:
+        print('Skipped {:d} frames.. \n'.format(skip))
+
     cap.release()
     cv2.destroyAllWindows()
 
-def calibrateCamera():
+
+def calibrate_camera():
     imgdir = 'assets/frames'
     # Define the dimensions of checkerboard
     CHECKERBOARD = (6, 9)
@@ -39,8 +54,7 @@ def calibrateCamera():
     # stop the iteration when specified
     # accuracy, epsilon, is reached or
     # specified number of iterations are completed.
-    criteria = (cv2.TERM_CRITERIA_EPS +
-                cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
     # Vector for 3D points
     threedpoints = []
@@ -89,12 +103,10 @@ def calibrateCamera():
             twodpoints.append(corners2)
 
             # Draw and display the corners
-            image = cv2.drawChessboardCorners(image,
-                                              CHECKERBOARD,
-                                              corners2, ret)
+            image = cv2.drawChessboardCorners(image, CHECKERBOARD, corners2, ret)
 
-        #cv2.imshow('img', image)
-        #cv2.waitKey(0)
+        cv2.imshow('img', image)
+        cv2.waitKey(0)
 
     cv2.destroyAllWindows()
 
@@ -106,7 +118,8 @@ def calibrateCamera():
     # detected corners (twodpoints)
     print("\n\n")
     print("Calibrating...")
-    ret, matrix, distortion, r_vecs, t_vecs = cv2.calibrateCamera(threedpoints, twodpoints, grayColor.shape[::-1], None, None)
+    ret, matrix, distortion, r_vecs, t_vecs = cv2.calibrateCamera(threedpoints, twodpoints, grayColor.shape[::-1], None,
+                                                                  None)
 
     # Displaying required output
     print("\n\nCamera matrix: \n")
@@ -129,7 +142,7 @@ def calibrateCamera():
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    getVideoFrames('assets/G3DCV2021_data/cam1 - static/calibration.mov')
-    calibrateCamera()
+    generate_video_frames('assets/G3DCV2021_data/cam1 - static/calibration.mov', False)
+    calibrate_camera()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
