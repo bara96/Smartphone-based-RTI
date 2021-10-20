@@ -22,9 +22,10 @@ def generate_video_frames(path, from_scratch=False):
 
     # Opens the Video file
     cap = cv2.VideoCapture(path)
-    i = gen = skip = 0
+    i = n_generated = n_skipped = 0
     print('Generating frames.. \n')
     while (cap.isOpened()):
+        skip = False
         ret, frame = cap.read()
         if ret == False:
             break
@@ -32,22 +33,22 @@ def generate_video_frames(path, from_scratch=False):
         # skip already generated frames
         if not from_scratch:
             if os.path.exists(frame_path):
-                i += 1
-                skip += 1
-                break
-        cv2.imwrite(frame_path, frame)
+                skip = True
+        if not skip:
+            cv2.imwrite(frame_path, frame)
+            n_generated += 1
+        else:
+            n_skipped += 1
         i += 1
-        gen += 1
-    print('Generated {:d} frames.. \n'.format(gen))
+    print('Generated {:d} frames.. \n'.format(n_generated))
     if not from_scratch:
-        print('Skipped {:d} frames.. \n'.format(skip))
+        print('Skipped {:d} frames.. \n'.format(n_skipped))
 
     cap.release()
     cv2.destroyAllWindows()
 
 
 def calibrate_camera():
-    imgdir = 'assets/frames'
     # Define the dimensions of checkerboard
     CHECKERBOARD = (6, 9)
 
@@ -62,6 +63,8 @@ def calibrate_camera():
     # Vector for 2D points
     twodpoints = []
 
+    grayColor = None
+
     #  3D points real world coordinates
     objectp3d = np.zeros((1, CHECKERBOARD[0]
                           * CHECKERBOARD[1],
@@ -74,7 +77,7 @@ def calibrate_camera():
     # in a given directory. Since no path is
     # specified, it will take current directory
     # jpg files alone
-    images = glob.glob('%s/img*.png' % imgdir)
+    images = glob.glob('%s/frame*.png' % 'assets/frames')
 
     for filename in images:
         image = cv2.imread(filename)
@@ -105,12 +108,11 @@ def calibrate_camera():
             # Draw and display the corners
             image = cv2.drawChessboardCorners(image, CHECKERBOARD, corners2, ret)
 
-        cv2.imshow('img', image)
-        cv2.waitKey(0)
+        # cv2.imshow('img', image)
+        # cv2.waitKey(0)
 
     cv2.destroyAllWindows()
 
-    h, w = image.shape[:2]
 
     # Perform camera calibration by
     # passing the value of above found out 3D points (threedpoints)
@@ -118,8 +120,7 @@ def calibrate_camera():
     # detected corners (twodpoints)
     print("\n\n")
     print("Calibrating...")
-    ret, matrix, distortion, r_vecs, t_vecs = cv2.calibrateCamera(threedpoints, twodpoints, grayColor.shape[::-1], None,
-                                                                  None)
+    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera(threedpoints, twodpoints, grayColor.shape[::-1], None, None)
 
     # Displaying required output
     print("\n\nCamera matrix: \n")
@@ -135,14 +136,14 @@ def calibrate_camera():
     print(t_vecs)
 
     # Write instrinsics to file
-    Kfile = cv2.FileStorage(imgdir + 'intrinsics.xml', cv2.FILE_STORAGE_WRITE)
+    Kfile = cv2.FileStorage('assets/intrinsics.xml', cv2.FILE_STORAGE_WRITE)
     Kfile.write("K", matrix)
     Kfile.write("distortion", distortion)
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    generate_video_frames('assets/G3DCV2021_data/cam1 - static/calibration.mov', False)
+    #generate_video_frames('assets/G3DCV2021_data/cam1 - static/calibration.mov', False)
     calibrate_camera()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
