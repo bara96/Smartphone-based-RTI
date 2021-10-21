@@ -29,6 +29,6 @@ Tunable parameters should not depend on the specific sequence processed.
 3. An <code>interactive_relighting</code> program to render a previously processed object according
 to a user-definable light source direction
 
-##Assets
+## Assets
 Download the assets folder from [here](http://www.dsi.unive.it/~bergamasco/teachingfiles/G3DCV2021_data.7z).  
 Create the <code>assets/</code> folder and extract the <i>G3DCV2021_data</i> archive there.
