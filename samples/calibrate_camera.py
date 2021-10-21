@@ -60,11 +60,11 @@ def calibrate_camera(imgdir):
     print(" dist: \n", dist)
 
     # Write instrinsics to file
-    Kfile = cv2.FileStorage(imgdir+'intrinsics.xml', cv2.FILE_STORAGE_WRITE)
+    Kfile = cv2.FileStorage(imgdir+'/intrinsics.xml', cv2.FILE_STORAGE_WRITE)
     Kfile.write("K", K)
     Kfile.write("dist", dist)
 
 
 if __name__ == '__main__':
     # calibrate_camera( './snaps/calib/' )
-    calibrate_camera('G3DCV2020_data_part1_calibration/calib/')
+    calibrate_camera('samples/G3DCV2020_data_part1_calibration/calib')
