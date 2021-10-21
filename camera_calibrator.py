@@ -1,15 +1,15 @@
 # Import required modules
+import os
+import random
+import shutil
 import cv2
 import numpy as np
-import os, random
-import shutil
-import glob
 
 
 # generate the frames images from the video, return the n° of frames generated
 # path: video path
 # from_scratch: if true will regenerate the entire frame sequence from scratch
-def generate_video_frames(path, from_scratch=False):
+def generate_video_frames(path, from_scratch=True):
     frames_dir = "assets/frames"
 
     # delete previous saved frames images
@@ -127,7 +127,8 @@ def calibrate_camera(n_frames=20, show_images=True):
     # detected corners (twodpoints)
     print("\n\n")
     print("Calibrating...")
-    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera(threedpoints, twodpoints, gray_color.shape[::-1], None, None)
+    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera(threedpoints, twodpoints, gray_color.shape[::-1],
+                                                                    None, None)
 
     # Displaying required output
     print("\n\nCamera matrix: \n")
@@ -150,7 +151,7 @@ def calibrate_camera(n_frames=20, show_images=True):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    # generate_video_frames('assets/G3DCV2021_data/cam1 - static/calibration.mov', False)
+    dir1 = 'assets/G3DCV2021_data/cam1 - static/calibration.mov'
+    dir2 = 'assets/G3DCV2021_data/cam2 - moving light/calibration.mp4'
+    # generate_video_frames(dir1, True)
     calibrate_camera()
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
