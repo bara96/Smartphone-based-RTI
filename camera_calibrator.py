@@ -7,11 +7,10 @@ import numpy as np
 
 
 # generate the frames images from the video, return the n° of frames generated
-# path: video path
+# video_path: video path
+# frames_dir: path where to save frames
 # from_scratch: if true will regenerate the entire frame sequence from scratch
-def generate_video_frames(path, from_scratch=True):
-    frames_dir = "assets/frames"
-
+def generate_video_frames(video_path, frames_dir='assets/frames', from_scratch=True):
     # delete previous saved frames images
     if from_scratch:
         if os.path.exists(frames_dir):
@@ -24,7 +23,7 @@ def generate_video_frames(path, from_scratch=True):
             os.mkdir(frames_dir)
 
     # Opens the Video file
-    cap = cv2.VideoCapture(path)
+    cap = cv2.VideoCapture(video_path)
     i = n_generated = n_skipped = 0
     print('Generating frames.. \n')
     while (cap.isOpened()):
@@ -32,7 +31,7 @@ def generate_video_frames(path, from_scratch=True):
         ret, frame = cap.read()
         if ret == False:
             break
-        frame_path = 'assets/frames/frame_' + str(i) + '.png'
+        frame_path = frames_dir + '/frame_' + str(i) + '.png'
         # skip already generated frames
         if not from_scratch:
             if os.path.exists(frame_path):
@@ -52,12 +51,11 @@ def generate_video_frames(path, from_scratch=True):
     return i
 
 
-# Calibrate the camera reading frames from generated assets
-# n_frames: n° of random frames to use for the calibration
+# Calibrate the camera reading frames_dir from generated assets
+# n_frames: n° of random frames_dir to use for the calibration
+# frames_dir: path where to get frames
 # show_images: if True, display the calibrated images
-def calibrate_camera(n_frames=20, show_images=True):
-    frames_dir = 'assets/frames/'
-
+def calibrate_camera(frames_dir='assets/frames/', n_frames=20, show_images=True):
     # Define the dimensions of checkerboard
     CHECKERBOARD = (6, 9)
 
@@ -153,5 +151,5 @@ def calibrate_camera(n_frames=20, show_images=True):
 if __name__ == '__main__':
     dir1 = 'assets/G3DCV2021_data/cam1 - static/calibration.mov'
     dir2 = 'assets/G3DCV2021_data/cam2 - moving light/calibration.mp4'
-    # generate_video_frames(dir1, True)
-    calibrate_camera()
+    # generate_video_frames(dir1, 'assets/frames_calibration')
+    calibrate_camera('assets/frames_calibration/')
