@@ -1,7 +1,5 @@
 # Import required modules
 import os
-import random
-import shutil
 import cv2
 import numpy as np
 
@@ -11,7 +9,10 @@ import numpy as np
 # save_path: path where to save the intrinsics
 # frame_skip: set how many frame to skip between each calibration
 # show_images: if True, show the calibrated images
-def calibrate_camera(video_path, save_path='assets/intrinsics.xml', frame_skip=60, show_images=True):
+def calibrate(video_path, save_path='assets/intrinsics.xml', frame_skip=60, show_images=True):
+    if not os.path.isfile(video_path):
+        raise Exception('Video not found!')
+
     # Define the dimensions of checkerboard
     CHECKERBOARD = (6, 9)
 
@@ -113,5 +114,5 @@ def calibrate_camera(video_path, save_path='assets/intrinsics.xml', frame_skip=6
 if __name__ == '__main__':
     dir_static = 'assets/G3DCV2021_data/cam1 - static/calibration.mov'
     dir_moving = 'assets/G3DCV2021_data/cam2 - moving light/calibration.mp4'
-    calibrate_camera(dir_static, save_path='assets/intrinsics_static.xml', show_images=False)
-    calibrate_camera(dir_moving, save_path='assets/intrinsics_moving.xml', show_images=False)
+    calibrate(dir_static, save_path='assets/intrinsics_static.xml', show_images=False)
+    calibrate(dir_moving, save_path='assets/intrinsics_moving.xml', show_images=False)
