@@ -32,3 +32,12 @@ to a user-definable light source direction
 ## Assets
 Download the assets folder from [here](http://www.dsi.unive.it/~bergamasco/teachingfiles/G3DCV2021_data.7z).  
 Create the <code>assets/</code> folder and extract the <i>G3DCV2021_data</i> archive there.
+
+# Libraries
+Here the commands to import required libraries with [conda](https://conda.io/)  
+<code>conda install numpy matplotlib</code>  
+<code>conda install opencv</code>  
+<code>conda install scipy</code>  
+<code>conda install ffmpeg-python</code>  
+<code>conda install -c conda-forge pysoundfile</code>  
+<code>conda install -c conda-forge moviepy</code>  

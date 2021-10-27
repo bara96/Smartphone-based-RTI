@@ -1,16 +1,22 @@
 # Import required modules
 import os
-import random
-import shutil
 import cv2
 import numpy as np
 
+INTRINSICS_STATIC_PATH = 'assets/intrinsics_static.xml'
+INTRINSICS_MOVING_PATH = 'assets/intrinsics_moving.xml'
+ASSETS_STATIC_FOLDER = 'assets/G3DCV2021_data/cam1 - static'
+ASSETS_MOVING_FOLDER = 'assets/G3DCV2021_data/cam2 - moving light'
 
 # Calibrate the camera reading video frames
-# video_path: video path
+# video_path: path where to get the video
+# save_path: path where to save the intrinsics
 # frame_skip: set how many frame to skip between each calibration
 # show_images: if True, show the calibrated images
-def calibrate_camera(video_path, frame_skip=60, show_images=True):
+def calibrate(video_path, save_path, frame_skip=60, show_images=True):
+    if not os.path.isfile(video_path):
+        raise Exception('Video not found!')
+
     # Define the dimensions of checkerboard
     CHECKERBOARD = (6, 9)
 
@@ -86,7 +92,8 @@ def calibrate_camera(video_path, frame_skip=60, show_images=True):
     # detected corners (twodpoints)
     print("N° of frames taken: ", n_frames_read, "\n")
     print("Calibrating... \n")
-    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera(threedpoints, twodpoints, gray_color.shape[::-1], None, None)
+    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera(threedpoints, twodpoints, gray_color.shape[::-1],
+                                                                    None, None)
 
     # Displaying required output
     print("Camera matrix: \n")
@@ -101,14 +108,13 @@ def calibrate_camera(video_path, frame_skip=60, show_images=True):
     print("\n\nTranslation Vectors: \n")
     print(t_vecs)
 
-    # Write instrinsics to file
-    Kfile = cv2.FileStorage('assets/intrinsics.xml', cv2.FILE_STORAGE_WRITE)
+    # Write intrinsics to file
+    Kfile = cv2.FileStorage(save_path, cv2.FILE_STORAGE_WRITE)
     Kfile.write("K", matrix)
     Kfile.write("distortion", distortion)
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    dir1 = 'assets/G3DCV2021_data/cam1 - static/calibration.mov'
-    dir2 = 'assets/G3DCV2021_data/cam2 - moving light/calibration.mp4'
-    calibrate_camera(dir2, 60, False)
+    calibrate(ASSETS_STATIC_FOLDER + '/calibration.mov', save_path=INTRINSICS_STATIC_PATH, show_images=False)
+    calibrate(ASSETS_MOVING_FOLDER + '/calibration.mp4', save_path=INTRINSICS_MOVING_PATH, show_images=False)
