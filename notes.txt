@@ -1,0 +1,15 @@
+- calibration
+	- calibration
+- analysis
+	- audio sync (scipy crosscorrelate) 
+	- get audio offset
+	- undistortion frames (and save) (open cv)
+	- save frames undistorted
+	- extract features => (orb library) tensor
+	- matchin between tensors (moving and static)
+	
+	- extract light position from moving camera for each frame (formula)
+	- apply mapping function
+	
+-interactive religthin
+	
