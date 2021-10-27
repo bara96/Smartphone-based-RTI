@@ -7,19 +7,40 @@ import math
 import utilities as ut
 from moviepy.editor import VideoFileClip
 
+FRAMES_FOLDER_PATH = 'assets/frames'
 
-# generate the frames images from the video, return the n° of frames generated
+
+# undistort the image
+def undistort_image(image, matrix, distortion):
+    # Compute the undistorted image
+    h, w = image.shape[:2]
+    # Compute the newcamera intrinsic matrix
+    new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(matrix, distortion, (w, h), 0)
+    # Undistort image
+    image_new = cv2.undistort(image, matrix, distortion, None, new_camera_matrix)
+
+    return image_new, roi
+
+
+# generate undistorted frames images from the video
 # video_path: path where to get the video
 # n_frames: number of frames to generate
 # offset: starting offset for the video
 # dir_name: directory name where to save the frames
-def generate_video_frames(video_path, n_frames=30, offset=0, dir_name='sample'):
-    BASE_SAVE_PATH = 'assets/frames'
-    SAVE_PATH = BASE_SAVE_PATH + "/" + dir_name
+def generate_video_frames(video_path, calibration_file_path, n_frames=30, offset=0, dir_name='sample'):
+    SAVE_PATH = FRAMES_FOLDER_PATH + "/" + dir_name
+
+    if not os.path.isfile(calibration_file_path):
+        raise Exception('intrinsics file not found!')
+    else:
+        # Read intrinsics to file
+        Kfile = cv2.FileStorage(calibration_file_path, cv2.FILE_STORAGE_READ)
+        matrix = Kfile.getNode("K").mat()
+        distortion = Kfile.getNode("distortion").mat()
 
     # create BASE_SAVE_PATH folder if not exists
-    if not os.path.exists(BASE_SAVE_PATH):
-        os.mkdir(BASE_SAVE_PATH)
+    if not os.path.exists(FRAMES_FOLDER_PATH):
+        os.mkdir(FRAMES_FOLDER_PATH)
 
     # delete previous saved frames images, otherwise create SAVE_PATH folder
     if os.path.exists(SAVE_PATH):
@@ -43,11 +64,11 @@ def generate_video_frames(video_path, n_frames=30, offset=0, dir_name='sample'):
         ret, frame = video.read()
         if ret == False:
             raise Exception('Null frame')
-        # Our operations on the frame come here
-        frame_path = SAVE_PATH + '/frame_' + str(i) + '.png'
-        frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        cv2.imwrite(frame_path, frame_gray)
-        # cv2.imshow('frame', frame_gray)
+
+        frame_new, roi = undistort_image(frame, matrix, distortion)
+        # save image
+        cv2.imwrite(SAVE_PATH + '/frame_' + str(i) + '.png', frame_new)
+        # cv2.imshow('frame', frame_new)
         # cv2.waitKey(0)
     print('Generated frames into \"{}\".. \n'.format(SAVE_PATH))
 
@@ -88,12 +109,12 @@ def get_audio_offset(video_static, video_moving):
 
     # return the offset
     if swapped:
-        return offset, 0
+        return offset, 0  # offset is on static video
     else:
-        return 0, offset
+        return 0, offset  # offset is on moving video
 
 
-# synchronize the videos, generate undistorted frames of synchronized videos
+# synchronize the videos and generate undistorted frames of synchronized videos
 def sync_videos(video_static_path, video_moving_path):
     if not os.path.isfile(video_static_path):
         raise Exception('Video static not found!')
@@ -104,19 +125,28 @@ def sync_videos(video_static_path, video_moving_path):
     video_moving = VideoFileClip(video_moving_path)
 
     # get offset of the two video
-    video_static_offset, video_moving_offset = get_audio_offset(video_static, video_moving)
+    return get_audio_offset(video_static, video_moving)
+
+
+# Press the green button in the gutter to run the script.
+if __name__ == '__main__':
+    video_static_path = camera_calibrator.ASSETS_STATIC_FOLDER + '/coin1.mov'
+    video_moving_path = camera_calibrator.ASSETS_MOVING_FOLDER + '/coin1.mp4'
+
+    video_static_offset, video_moving_offset = sync_videos(video_static_path, video_moving_path)
 
     # extract filename from video path in order to create a directory for video frames
     video_static_dir = 'static_' + os.path.splitext(os.path.basename(video_static_path))[0]
     video_moving_dir = 'moving_' + os.path.splitext(os.path.basename(video_moving_path))[0]
 
-    # generate frames for both video
-    generate_video_frames(video_static_path, dir_name=video_static_dir, offset=video_static_offset)
-    generate_video_frames(video_moving_path, dir_name=video_moving_dir, offset=video_moving_offset)
+    # generate frames for static video
+    generate_video_frames(video_static_path,
+                          calibration_file_path=camera_calibrator.INTRINSICS_STATIC_PATH,
+                          dir_name=video_static_dir,
+                          offset=video_static_offset)
 
-
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    dir_static = 'assets/G3DCV2021_data/cam1 - static/coin1.mov'
-    dir_moving = 'assets/G3DCV2021_data/cam2 - moving light/coin1.mp4'
-    sync_videos(dir_static, dir_moving)
+    # generate frames for moving video
+    generate_video_frames(video_moving_path,
+                          calibration_file_path=camera_calibrator.INTRINSICS_MOVING_PATH,
+                          dir_name=video_moving_dir,
+                          offset=video_moving_offset)

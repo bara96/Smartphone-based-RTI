@@ -3,13 +3,17 @@ import os
 import cv2
 import numpy as np
 
+INTRINSICS_STATIC_PATH = 'assets/intrinsics_static.xml'
+INTRINSICS_MOVING_PATH = 'assets/intrinsics_moving.xml'
+ASSETS_STATIC_FOLDER = 'assets/G3DCV2021_data/cam1 - static'
+ASSETS_MOVING_FOLDER = 'assets/G3DCV2021_data/cam2 - moving light'
 
 # Calibrate the camera reading video frames
 # video_path: path where to get the video
 # save_path: path where to save the intrinsics
 # frame_skip: set how many frame to skip between each calibration
 # show_images: if True, show the calibrated images
-def calibrate(video_path, save_path='assets/intrinsics.xml', frame_skip=60, show_images=True):
+def calibrate(video_path, save_path, frame_skip=60, show_images=True):
     if not os.path.isfile(video_path):
         raise Exception('Video not found!')
 
@@ -104,7 +108,7 @@ def calibrate(video_path, save_path='assets/intrinsics.xml', frame_skip=60, show
     print("\n\nTranslation Vectors: \n")
     print(t_vecs)
 
-    # Write instrinsics to file
+    # Write intrinsics to file
     Kfile = cv2.FileStorage(save_path, cv2.FILE_STORAGE_WRITE)
     Kfile.write("K", matrix)
     Kfile.write("distortion", distortion)
@@ -112,7 +116,5 @@ def calibrate(video_path, save_path='assets/intrinsics.xml', frame_skip=60, show
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    dir_static = 'assets/G3DCV2021_data/cam1 - static/calibration.mov'
-    dir_moving = 'assets/G3DCV2021_data/cam2 - moving light/calibration.mp4'
-    calibrate(dir_static, save_path='assets/intrinsics_static.xml', show_images=False)
-    calibrate(dir_moving, save_path='assets/intrinsics_moving.xml', show_images=False)
+    calibrate(ASSETS_STATIC_FOLDER + '/calibration.mov', save_path=INTRINSICS_STATIC_PATH, show_images=False)
+    calibrate(ASSETS_MOVING_FOLDER + '/calibration.mp4', save_path=INTRINSICS_MOVING_PATH, show_images=False)
