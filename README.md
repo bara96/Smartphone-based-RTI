@@ -39,4 +39,5 @@ Here the commands to import required libraries with [conda](https://conda.io/)
 <code>conda install opencv</code>  
 <code>conda install scipy</code>  
 <code>conda install ffmpeg-python</code>  
-<code>conda install -c auto python-praat-scripts</code>  
+<code>conda install -c conda-forge pysoundfile</code>  
+<code>conda install -c conda-forge moviepy</code>  
