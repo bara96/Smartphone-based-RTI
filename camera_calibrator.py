@@ -5,8 +5,9 @@ import numpy as np
 
 INTRINSICS_STATIC_PATH = 'assets/intrinsics_static.xml'
 INTRINSICS_MOVING_PATH = 'assets/intrinsics_moving.xml'
-ASSETS_STATIC_FOLDER = 'assets/G3DCV2021_data/cam1 - static'
-ASSETS_MOVING_FOLDER = 'assets/G3DCV2021_data/cam2 - moving light'
+ASSETS_BASE_FOLDER = 'assets/G3DCV2021_data'
+ASSETS_STATIC_FOLDER = ASSETS_BASE_FOLDER + '/cam1 - static'
+ASSETS_MOVING_FOLDER = ASSETS_BASE_FOLDER + '/cam2 - moving light'
 
 # Calibrate the camera reading video frames
 # video_path: path where to get the video

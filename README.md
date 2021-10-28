@@ -41,3 +41,6 @@ Here the commands to import required libraries with [conda](https://conda.io/)
 <code>conda install ffmpeg-python</code>  
 <code>conda install -c conda-forge pysoundfile</code>  
 <code>conda install -c conda-forge moviepy</code>  
+<code>pip install svglib</code>  
+<code>conda install -c anaconda reportlab</code>  
+
