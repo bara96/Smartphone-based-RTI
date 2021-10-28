@@ -143,25 +143,25 @@ def sync_videos(video_static_path, video_moving_path):
 # feature matching using ORB algorithm
 # frames_folder: path to the images
 # train_image_path: path to the train image
-def extract_features(frames_folder_path, train_image_path):
-    if not os.path.isdir(frames_folder_path):
-        raise Exception('Frames folder not found!')
-    if not os.path.isfile(train_image_path):
-        raise Exception('Train image not found!')
+def extract_features(frames_static_folder_path, frames_moving_folder_path):
+    if not os.path.isdir(frames_static_folder_path):
+        raise Exception('Static folder not found!')
+    if not os.path.isdir(frames_moving_folder_path):
+        raise Exception('Moving folder not found!')
 
-    # Read the train image
-    if train_image_path.endswith('.svg'):
-        png_path = ut.svg_to_png(train_image_path)
-        train_img = cv2.imread(png_path)
-    else:
-        train_img = cv2.imread(train_image_path)
+    list_static = os.listdir(frames_static_folder_path)  # dir is your directory path
+    n_files_static = len(list_static)
+    list_moving = os.listdir(frames_moving_folder_path)  # dir is your directory path
+    n_files_moving = len(list_moving)
+    tot_frames = min(n_files_static, n_files_moving)
 
-    train_img_bw = cv2.cvtColor(train_img, cv2.COLOR_BGR2GRAY)
-
-    for filename in os.listdir(frames_folder_path):
+    for i in range(0, tot_frames):
+        # Read the train image
+        train_img = cv2.imread(frames_static_folder_path + "/frame_{}.png".format(i))
+        train_img_bw = cv2.cvtColor(train_img, cv2.COLOR_BGR2GRAY)
         # Read the query image
         # The query image is what we need to find in train image
-        query_img = cv2.imread(os.path.join(frames_folder_path, filename))
+        query_img = cv2.imread(frames_moving_folder_path + "/frame_{}.png".format(i))
         query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
         # Initialize the ORB detector algorithm
@@ -188,8 +188,9 @@ def extract_features(frames_folder_path, train_image_path):
                                     train_img, trainKeypoints, matches[:20], None)
 
         # Show the final image
-        final_img = cv2.resize(final_img, (1000, 650))
+        # final_img = cv2.resize(final_img, (1000, 650))
         cv2.imshow("Matches", final_img)
+        cv2.imwrite('assets/test/frame_{}.png'.format(i), final_img)
         cv2.waitKey(0)
 
 
@@ -203,4 +204,4 @@ if __name__ == '__main__':
 
     # sync_videos(video_static_path, video_moving_path)
 
-    extract_features(frames_static_folder, cc.ASSETS_BASE_FOLDER + "/marker.svg")
+    extract_features(frames_static_folder, frames_moving_folder)
