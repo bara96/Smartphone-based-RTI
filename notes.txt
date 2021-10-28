@@ -5,11 +5,13 @@
 	- get audio offset
 	- undistorted frames (and save) (open cv)
 	- save frames undistorted
+	- enchantment (morphological operations)
 	- extract features => (orb library) tensor
 	- matching between tensors (moving and static)
-	
+	- find rotation/translation into images (pnr library)
+	- apply translation to static
 	- extract light position from moving camera for each frame (formula)
 	- apply mapping function
 	
--interactive religthin
+-interactive relighting
 	

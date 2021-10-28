@@ -82,6 +82,8 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
 
     # Opens the Video file
     video = cv2.VideoCapture(video_path)
+    # print("FPS of \"{}\": {} \n".format(video_path, video.get(cv2.CAP_PROP_FPS)))
+
     frame_n = offset  # starting offset (from video sync)
     frame_skip = math.trunc((tot_frames - offset) / n_frames)  # skip threshold between frames to obtain n_frames
     print('Generating frames.. \n')
@@ -176,16 +178,15 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path):
         # Initialize the Matcher for matching
         # the keypoints and then match the
         # keypoints
-        matcher = cv2.BFMatcher()
+        matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
         matches = matcher.match(queryDescriptors, trainDescriptors)
 
-        # draw the matches to the final image
-        # containing both the images the drawMatches()
-        # function takes both images and keypoints
-        # and outputs the matched query image with
-        # its train image
-        final_img = cv2.drawMatches(query_img, queryKeypoints,
-                                    train_img, trainKeypoints, matches[:20], None)
+        # Sort them in the order of their distance.
+        matches = sorted(matches, key=lambda x: x.distance)
+
+        # draw the matches to the final image containing both the images
+        # Draw first 10 matches
+        final_img = cv2.drawMatches(query_img, queryKeypoints, train_img, trainKeypoints, matches[:10], None)
 
         # Show the final image
         # final_img = cv2.resize(final_img, (1000, 650))
