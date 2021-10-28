@@ -69,6 +69,7 @@ def get_video_total_frames(video_path):
     return tot_frames
 
 
+# convert svg to png
 def svg_to_png(image_path):
     from svglib.svglib import svg2rlg
     from reportlab.graphics import renderPDF, renderPM
@@ -79,3 +80,26 @@ def svg_to_png(image_path):
     renderPM.drawToFile(drawing, image_path_new, fmt="PNG")
 
     return image_path_new
+
+
+# enchantment of an image with morphological operations
+def image_enchantment(image, params):
+    kernel = np.ones((5, 5), np.uint8)
+
+    for param in params:
+        if param == 'erode':
+            image = cv2.erode(image, kernel, iterations=1)
+        if type == 'dilation':
+            image = cv2.dilate(image, kernel, iterations=1)
+        if type == 'opening':
+            image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
+        if type == 'closing':
+            image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
+        if type == 'gradient':
+            image = cv2.morphologyEx(image, cv2.MORPH_GRADIENT, kernel)
+        if type == 'tophat':
+            image = cv2.morphologyEx(image, cv2.MORPH_TOPHAT, kernel)
+        if type == 'blackhat':
+            image = cv2.morphologyEx(image, cv2.MORPH_BLACKHAT, kernel)
+
+    return image

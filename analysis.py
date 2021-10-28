@@ -166,6 +166,9 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path):
         query_img = cv2.imread(frames_moving_folder_path + "/frame_{}.png".format(i))
         query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
+        train_img_bw = ut.image_enchantment(train_img_bw, ['tophat'])
+        query_img_bw = ut.image_enchantment(query_img_bw, ['tophat'])
+
         # Initialize the ORB detector algorithm
         orb = cv2.ORB_create()
 
@@ -186,7 +189,7 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path):
 
         # draw the matches to the final image containing both the images
         # Draw first 10 matches
-        final_img = cv2.drawMatches(query_img, queryKeypoints, train_img, trainKeypoints, matches[:10], None)
+        final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, matches[:10], None)
 
         # Show the final image
         # final_img = cv2.resize(final_img, (1000, 650))
