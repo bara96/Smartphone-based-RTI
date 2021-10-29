@@ -9,6 +9,7 @@ ASSETS_BASE_FOLDER = 'assets/G3DCV2021_data'
 ASSETS_STATIC_FOLDER = ASSETS_BASE_FOLDER + '/cam1 - static'
 ASSETS_MOVING_FOLDER = ASSETS_BASE_FOLDER + '/cam2 - moving light'
 
+
 # Calibrate the camera reading video frames
 # video_path: path where to get the video
 # save_path: path where to save the intrinsics
@@ -40,8 +41,8 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
                           3), np.float32)
     objectp3d[0, :, :2] = np.mgrid[0:CHECKERBOARD[0],
                           0:CHECKERBOARD[1]].T.reshape(-1, 2)
-    prev_img_shape = None
 
+    print("Calibrating... \n")
     n_frames_read = 0
     n_frame = 0
     video = cv2.VideoCapture(video_path)
@@ -91,11 +92,11 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
     # passing the value of above found out 3D points (threedpoints)
     # and its corresponding pixel coordinates of the
     # detected corners (twodpoints)
-    print("N° of frames taken: ", n_frames_read, "\n")
-    print("Calibrating... \n")
+
     (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera(threedpoints, twodpoints, gray_color.shape[::-1],
                                                                     None, None)
 
+    print("Calibration ended... \n")
     # Displaying required output
     print("Camera matrix: \n")
     print(matrix)
@@ -113,9 +114,14 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
     Kfile = cv2.FileStorage(save_path, cv2.FILE_STORAGE_WRITE)
     Kfile.write("K", matrix)
     Kfile.write("distortion", distortion)
+    print("Calibration saved: \"{}\" \n".format(save_path))
+
+
+def compute():
+    calibrate(ASSETS_STATIC_FOLDER + '/calibration.mov', save_path=INTRINSICS_STATIC_PATH, show_images=False)
+    calibrate(ASSETS_MOVING_FOLDER + '/calibration.mp4', save_path=INTRINSICS_MOVING_PATH, show_images=False)
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    calibrate(ASSETS_STATIC_FOLDER + '/calibration.mov', save_path=INTRINSICS_STATIC_PATH, show_images=False)
-    calibrate(ASSETS_MOVING_FOLDER + '/calibration.mp4', save_path=INTRINSICS_MOVING_PATH, show_images=False)
+    compute()

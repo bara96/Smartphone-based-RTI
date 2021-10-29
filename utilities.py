@@ -88,18 +88,30 @@ def image_enchantment(image, params):
 
     for param in params:
         if param == 'erode':
-            image = cv2.erode(image, kernel, iterations=1)
+            image = cv2.erode(image, kernel, iterations=3)
         if type == 'dilation':
-            image = cv2.dilate(image, kernel, iterations=1)
+            image = cv2.dilate(image, kernel, iterations=3)
         if type == 'opening':
-            image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
+            # erosion followed by dilation: removing noise
+            # image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
+            image = image_enchantment(image, ['erode'])
+            image = image_enchantment(image, ['dilation'])
         if type == 'closing':
-            image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
+            # dilation followed by erosion: closing small holes inside the foreground objects
+            # image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
+            image = image_enchantment(image, ['dilation'])
+            image = image_enchantment(image, ['erode'])
         if type == 'gradient':
+            # difference between dilation and erosion of an image
             image = cv2.morphologyEx(image, cv2.MORPH_GRADIENT, kernel)
         if type == 'tophat':
+            # difference between input image and opening of the image
             image = cv2.morphologyEx(image, cv2.MORPH_TOPHAT, kernel)
         if type == 'blackhat':
+            # difference between the closing of the input image and input image
             image = cv2.morphologyEx(image, cv2.MORPH_BLACKHAT, kernel)
+        if type == 'sharpen':
+            kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+            image = cv2.filter2D(image, -1, kernel)
 
     return image

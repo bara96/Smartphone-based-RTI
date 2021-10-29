@@ -36,11 +36,11 @@ Create the <code>assets/</code> folder and extract the <i>G3DCV2021_data</i> arc
 # Libraries
 Here the commands to import required libraries with [conda](https://conda.io/)  
 <code>conda install numpy matplotlib</code>  
-<code>conda install opencv</code>  
-<code>conda install scipy</code>  
+<code>conda install -c conda-forge opencv</code>  <small>Note: must be 4.2.0 or greater</small>  
+<code>conda install -c anaconda scipy</code>  
 <code>conda install ffmpeg-python</code>  
 <code>conda install -c conda-forge pysoundfile</code>  
 <code>conda install -c conda-forge moviepy</code>  
-<code>pip install svglib</code>  
+<code>conda install -c conda-forge svglib</code>  
 <code>conda install -c anaconda reportlab</code>  
 

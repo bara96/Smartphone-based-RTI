@@ -1,4 +1,5 @@
 # Import required modules
+import camera_calibrator
 import camera_calibrator as cc
 import shutil
 import os
@@ -41,6 +42,8 @@ def get_audio_offset(video_static, video_moving):
     # calculate and round the shift
     offset = round(ut.find_audio_correlation(wave2, wave1) / fs1, 0)
 
+    print("Current offset: {} \n".format(offset))
+
     # return the offset
     if swapped:
         return offset, 0  # offset is on static video
@@ -82,14 +85,14 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
 
     # Opens the Video file
     video = cv2.VideoCapture(video_path)
-    # print("FPS of \"{}\": {} \n".format(video_path, video.get(cv2.CAP_PROP_FPS)))
 
-    frame_n = offset  # starting offset (from video sync)
+    offset *= 30    # 30 fps * offset
+    frame_n = offset  # starting from offset (for video sync)
     frame_skip = math.trunc((tot_frames - offset) / n_frames)  # skip threshold between frames to obtain n_frames
     print('Generating frames.. \n')
     for i in range(0, n_frames):
         frame_n += frame_skip
-        video.set(1, frame_n)  # skip frames
+        video.set(cv2.CAP_PROP_POS_FRAMES, frame_n)  # skip frames
         ret, frame = video.read()
         if ret == False:
             raise Exception('Null frame')
@@ -166,8 +169,8 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path):
         query_img = cv2.imread(frames_moving_folder_path + "/frame_{}.png".format(i))
         query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
-        train_img_bw = ut.image_enchantment(train_img_bw, ['tophat'])
-        query_img_bw = ut.image_enchantment(query_img_bw, ['tophat'])
+        train_img_bw = ut.image_enchantment(train_img_bw, ['opening'])
+        query_img_bw = ut.image_enchantment(query_img_bw, ['opening'])
 
         # Initialize the ORB detector algorithm
         orb = cv2.ORB_create()
@@ -198,8 +201,8 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path):
         cv2.waitKey(0)
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
+
+def compute():
     coin = 'coin1'
     video_static_path = cc.ASSETS_STATIC_FOLDER + '/{}.mov'.format(coin)
     video_moving_path = cc.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(coin)
@@ -209,3 +212,8 @@ if __name__ == '__main__':
     # sync_videos(video_static_path, video_moving_path)
 
     extract_features(frames_static_folder, frames_moving_folder)
+
+
+# Press the green button in the gutter to run the script.
+if __name__ == '__main__':
+    compute()
