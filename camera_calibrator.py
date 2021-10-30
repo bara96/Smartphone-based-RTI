@@ -33,7 +33,7 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
     # Vector for 2D points
     twodpoints = []
 
-    gray_color = None
+    image_gray = None
 
     #  3D points real world coordinates
     objectp3d = np.zeros((1, CHECKERBOARD[0]
@@ -52,13 +52,13 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
         video.set(1, n_frame)  # grab a frame every n
         if ret:
             n_frames_read += 1
-            gray_color = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
             # Find the chess board corners
             # If desired number of corners are
             # found in the image then ret = true
             ret, corners = cv2.findChessboardCorners(
-                gray_color, CHECKERBOARD,
+                image_gray, CHECKERBOARD,
                 cv2.CALIB_CB_ADAPTIVE_THRESH
                 + cv2.CALIB_CB_FAST_CHECK +
                 cv2.CALIB_CB_NORMALIZE_IMAGE)
@@ -72,7 +72,7 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
                 # Refining pixel coordinates
                 # for given 2d points.
                 corners2 = cv2.cornerSubPix(
-                    gray_color, corners, (11, 11), (-1, -1), criteria)
+                    image_gray, corners, (11, 11), (-1, -1), criteria)
 
                 twodpoints.append(corners2)
 
@@ -93,7 +93,7 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
     # and its corresponding pixel coordinates of the
     # detected corners (twodpoints)
 
-    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera(threedpoints, twodpoints, gray_color.shape[::-1],
+    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera(threedpoints, twodpoints, image_gray.shape[::-1],
                                                                     None, None)
 
     print("Calibration ended... \n")

@@ -169,6 +169,7 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path):
         query_img = cv2.imread(frames_moving_folder_path + "/frame_{}.png".format(i))
         query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
+        # try to transform the static into the moving
         train_img_bw = ut.image_enchantment(train_img_bw, ['opening'])
         query_img_bw = ut.image_enchantment(query_img_bw, ['opening'])
 
@@ -189,6 +190,7 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path):
 
         # Sort them in the order of their distance.
         matches = sorted(matches, key=lambda x: x.distance)
+        ut.homography_transformation(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, matches)
 
         # draw the matches to the final image containing both the images
         # Draw first 10 matches
@@ -196,9 +198,9 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path):
 
         # Show the final image
         # final_img = cv2.resize(final_img, (1000, 650))
-        cv2.imshow("Matches", final_img)
+        #cv2.imshow("Matches", final_img)
         cv2.imwrite('assets/test/frame_{}.png'.format(i), final_img)
-        cv2.waitKey(0)
+        #cv2.waitKey(0)
 
 
 
