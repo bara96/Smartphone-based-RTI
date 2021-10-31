@@ -86,7 +86,7 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
     # Opens the Video file
     video = cv2.VideoCapture(video_path)
 
-    offset *= 30    # 30 fps * offset
+    offset *= 30  # 30 fps * offset
     frame_n = offset  # starting from offset (for video sync)
     frame_skip = math.trunc((tot_frames - offset) / n_frames)  # skip threshold between frames to obtain n_frames
     print('Generating frames.. \n')
@@ -148,7 +148,7 @@ def sync_videos(video_static_path, video_moving_path):
 # feature matching using ORB algorithm
 # frames_folder: path to the images
 # train_image_path: path to the train image
-def extract_features(frames_static_folder_path, frames_moving_folder_path):
+def extract_features(frames_static_folder_path, frames_moving_folder_path, show_images=True):
     if not os.path.isdir(frames_static_folder_path):
         raise Exception('Static folder not found!')
     if not os.path.isdir(frames_moving_folder_path):
@@ -160,6 +160,11 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path):
     n_files_moving = len(list_moving)
     tot_frames = min(n_files_static, n_files_moving)
 
+    # Initialize the ORB detector algorithm
+    orb = cv2.ORB_create()
+    # Initialize the Matcher for matching the keypoints
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+
     for i in range(0, tot_frames):
         # Read the train image
         train_img = cv2.imread(frames_static_folder_path + "/frame_{}.png".format(i))
@@ -169,39 +174,41 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path):
         query_img = cv2.imread(frames_moving_folder_path + "/frame_{}.png".format(i))
         query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
-        # try to transform the static into the moving
+        # try to enchant the pictures for easier features recognition
         train_img_bw = ut.image_enchantment(train_img_bw, ['opening'])
         query_img_bw = ut.image_enchantment(query_img_bw, ['opening'])
 
-        # Initialize the ORB detector algorithm
-        orb = cv2.ORB_create()
-
-        # Now detect the keypoints and compute
-        # the descriptors for the query image
-        # and train image
+        # Now detect the keypoints and
+        # compute the descriptors for the query image and train image
         queryKeypoints, queryDescriptors = orb.detectAndCompute(query_img_bw, None)
         trainKeypoints, trainDescriptors = orb.detectAndCompute(train_img_bw, None)
 
-        # Initialize the Matcher for matching
-        # the keypoints and then match the
-        # keypoints
-        matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        # match the keypoints and sort them in the order of their distance.
         matches = matcher.match(queryDescriptors, trainDescriptors)
-
-        # Sort them in the order of their distance.
         matches = sorted(matches, key=lambda x: x.distance)
-        ut.homography_transformation(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, matches)
+
+        # store all the good matches as per Lowe's ratio test.
+        matches = matcher.knnMatch(queryDescriptors, trainDescriptors, k=2)  # knnMatch is crucial
+        good_matches = []
+        for m, n in matches:
+            if (m.distance < 0.9 * n.distance):
+                good_matches.append(m)
+
+                # try to transform the static into the moving
+        ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
+                                     transform_image=train_img_bw, transform_features=(trainKeypoints, trainDescriptors),
+                                     matches=good_matches, show_images=True)
 
         # draw the matches to the final image containing both the images
         # Draw first 10 matches
-        final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, matches[:10], None)
+        final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches[:10], None)
+        final_img = cv2.resize(final_img, (1000, 650))
 
         # Show the final image
-        # final_img = cv2.resize(final_img, (1000, 650))
-        #cv2.imshow("Matches", final_img)
+        if show_images:
+            cv2.imshow("Matches", final_img)
+            cv2.waitKey(0)
         cv2.imwrite('assets/test/frame_{}.png'.format(i), final_img)
-        #cv2.waitKey(0)
-
 
 
 def compute():
