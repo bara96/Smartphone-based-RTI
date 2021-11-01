@@ -86,21 +86,17 @@ def svg_to_png(image_path):
 def image_enchantment(image, params):
     kernel = np.ones((5, 5), np.uint8)
 
-    for param in params:
-        if param == 'erode':
-            image = cv2.erode(image, kernel, iterations=3)
+    for type in params:
+        if type == 'erode':
+            image = cv2.morphologyEx(image, cv2.MORPH_ERODE, kernel)
         if type == 'dilation':
-            image = cv2.dilate(image, kernel, iterations=3)
+            cv2.morphologyEx(image, cv2.MORPH_DILATE, kernel)
         if type == 'opening':
             # erosion followed by dilation: removing noise
             image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
-            # image = image_enchantment(image, ['erode'])
-            # image = image_enchantment(image, ['dilation'])
         if type == 'closing':
             # dilation followed by erosion: closing small holes inside the foreground objects
             image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
-            # image = image_enchantment(image, ['dilation'])
-            # image = image_enchantment(image, ['erode'])
         if type == 'gradient':
             # difference between dilation and erosion of an image
             image = cv2.morphologyEx(image, cv2.MORPH_GRADIENT, kernel)
@@ -118,7 +114,8 @@ def image_enchantment(image, params):
 
 
 # homography transformation of the transform into the refer image
-def homography_transformation(refer_image, refer_features, transform_image, transform_features, matches, show_images=True):
+def homography_transformation(refer_image, refer_features, transform_image, transform_features, matches,
+                              show_images=True):
     kp_refer_image, desc_refer_image = refer_features[0], refer_features[1]
     kp_transform_image, desc_transform_image = transform_features[0], transform_features[1]
 
@@ -126,7 +123,7 @@ def homography_transformation(refer_image, refer_features, transform_image, tran
                            .pt for m in matches]).reshape(-1, 1, 2)
 
     transform_pts = np.float32([kp_refer_image[m.queryIdx]
-                           .pt for m in matches]).reshape(-1, 1, 2)
+                               .pt for m in matches]).reshape(-1, 1, 2)
 
     matrix, mask = cv2.findHomography(refer_pts, transform_pts, cv2.RANSAC, 5.0)
 
