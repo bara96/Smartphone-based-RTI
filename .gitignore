@@ -1,9 +1,7 @@
 .idea/
 samples/__pycache__/
-assets/G3DCV2021_data
-
 __pycache__/
-
-assets/frames/
-
+assets/G3DCV2021_data
 assets/test/
+assets/match_results/
+assets/transformation_results/
