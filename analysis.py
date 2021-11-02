@@ -192,11 +192,14 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path, show_
         matches = matcher.match(queryDescriptors, trainDescriptors)
         good_matches = sorted(matches, key=lambda x: x.distance)
 
+        save_as = None
+        if save_images:
+            save_as = "frame_{}.png".format(i)
         # try to transform the static into the moving
         ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
                                      transform_image=train_img_bw,
                                      transform_features=(trainKeypoints, trainDescriptors),
-                                     matches=good_matches, show_images=show_images, save_as="frame_{}.png".format(i))
+                                     matches=good_matches, show_images=show_images, save_as=save_as)
 
         # draw the matches to the final image containing both the images
         # Draw first 10 matches
@@ -265,11 +268,14 @@ def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, 
         # good_matches = sorted(good_matches, key=lambda x: x.distance)
 
         if len(good_matches) > MIN_MATCH_COUNT:
+            save_as = None
+            if save_images:
+                save_as = "frame_{}.png".format(i)
             # try to transform the static into the moving
             ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
                                          transform_image=train_img_bw,
                                          transform_features=(trainKeypoints, trainDescriptors),
-                                         matches=good_matches, show_images=show_images, save_as="frame_{}.png".format(i))
+                                         matches=good_matches, show_images=show_images, save_as=save_as)
         else:
             print("Not enough matches are found - %d/%d" % (len(good_matches), MIN_MATCH_COUNT))
 
@@ -297,7 +303,7 @@ def compute(sync=False):
     if sync:
         sync_videos(video_static_path, video_moving_path)
 
-    extract_features(frames_static_folder, frames_moving_folder, show_images=False, save_images=True)
+    extract_features(frames_static_folder, frames_moving_folder, show_images=True, save_images=True)
     # extract_features_SIFT(frames_static_folder, frames_moving_folder, show_images=True, save_images=True)
 
 
