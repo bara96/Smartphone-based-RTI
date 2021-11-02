@@ -165,6 +165,7 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path, show_
     # Initialize the Matcher for matching the keypoints
     matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
+    dataset = []
     for i in range(0, tot_frames):
         # Read the train image
         train_img = cv2.imread(frames_static_folder_path + "/frame_{}.png".format(i))
@@ -172,6 +173,7 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path, show_
         # Read the query image
         # The query image is what we need to find in train image
         query_img = cv2.imread(frames_moving_folder_path + "/frame_{}.png".format(i))
+        query_img = ut.CLAHE(query_img)
         query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
         # try to enchant the pictures for easier features recognition
@@ -179,9 +181,15 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path, show_
         train_img_bw = ut.image_enchantment(train_img_bw, params)
         query_img_bw = ut.image_enchantment(query_img_bw, params)
 
-        histr = cv2.calcHist([train_img_bw],[0],None,[256],[0,256])
-        plt.plot(histr)
-        # plt.show()
+        plot = False
+        if plot:
+            histr = cv2.calcHist([train_img_bw], [0], None, [256], [0, 256])
+            plt.plot(histr)
+            plt.show(block=False)
+
+            histr = cv2.calcHist([query_img_bw], [0], None, [256], [0, 256])
+            plt.plot(histr)
+            plt.show(block=False)
 
         # Now detect the keypoints and
         # compute the descriptors for the query image and train image
@@ -196,10 +204,12 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path, show_
         if save_images:
             save_as = "frame_{}.png".format(i)
         # try to transform the static into the moving
-        ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
+        homography = ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
                                      transform_image=train_img_bw,
                                      transform_features=(trainKeypoints, trainDescriptors),
                                      matches=good_matches, show_images=show_images, save_as=save_as)
+
+        # dataset.append((queryKeypoints, queryDescriptors, homography))
 
         # draw the matches to the final image containing both the images
         # Draw first 10 matches
@@ -210,6 +220,7 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path, show_
         if show_images:
             cv2.imshow("Matches", final_img)
             cv2.waitKey(0)
+            plt.close()
         # Save the final image
         if save_images:
             if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
@@ -246,12 +257,9 @@ def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, 
         # Read the query image
         # The query image is what we need to find in train image
         query_img = cv2.imread(frames_moving_folder_path + "/frame_{}.png".format(i))
+        query_img = ut.enchant_brightness_and_contrast(query_img)
         query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
-        # try to enchant the pictures for easier features recognition
-        params = []
-        train_img_bw = ut.image_enchantment(train_img_bw, params)
-        query_img_bw = ut.image_enchantment(query_img_bw, params)
 
         # Now detect the keypoints and
         # compute the descriptors for the query image and train image
@@ -303,7 +311,7 @@ def compute(sync=False):
     if sync:
         sync_videos(video_static_path, video_moving_path)
 
-    extract_features(frames_static_folder, frames_moving_folder, show_images=True, save_images=True)
+    extract_features(frames_static_folder, frames_moving_folder, show_images=True, save_images=False)
     # extract_features_SIFT(frames_static_folder, frames_moving_folder, show_images=True, save_images=True)
 
 
