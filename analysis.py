@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 import utilities as ut
 from moviepy.editor import VideoFileClip
 
+MIN_MATCH_COUNT = 30
 
 
 # video_static: first VideoFileClip
@@ -198,22 +199,31 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path, show_
 
         # match the keypoints and sort them in the order of their distance.
         matches = matcher.match(queryDescriptors, trainDescriptors)
-        good_matches = sorted(matches, key=lambda x: x.distance)
+        matches = sorted(matches, key=lambda x: x.distance)
 
+        # Apply ratio test
+        good_matches = []
+        for match in matches:
+            p1 = queryKeypoints[match.queryIdx].pt
+            p2 = trainKeypoints[match.trainIdx].pt
+            if p1.distance < 0.75 * p2.distance:
+                good_matches.append(match)
+
+        # try to transform the static into the moving
         save_as = None
         if save_images:
             save_as = "frame_{}.png".format(i)
-        # try to transform the static into the moving
-        homography = ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
-                                     transform_image=train_img_bw,
-                                     transform_features=(trainKeypoints, trainDescriptors),
-                                     matches=good_matches, show_images=show_images, save_as=save_as)
+        homography = ut.homography_transformation(refer_image=query_img_bw,
+                                                  refer_features=(queryKeypoints, queryDescriptors),
+                                                  transform_image=train_img_bw,
+                                                  transform_features=(trainKeypoints, trainDescriptors),
+                                                  matches=good_matches, show_images=show_images, save_as=save_as)
 
         # dataset.append((queryKeypoints, queryDescriptors, homography))
 
         # draw the matches to the final image containing both the images
         # Draw first 10 matches
-        final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches[:10], None)
+        final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches, None)
         final_img = cv2.resize(final_img, (1000, 650))
 
         # Show the final image
@@ -242,7 +252,6 @@ def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, 
 
     sift = cv2.SIFT_create()
 
-    MIN_MATCH_COUNT = 20
     # FLANN parameters
     FLANN_INDEX_KDTREE = 0
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
@@ -260,7 +269,6 @@ def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, 
         query_img = ut.enchant_brightness_and_contrast(query_img)
         query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
-
         # Now detect the keypoints and
         # compute the descriptors for the query image and train image
         queryKeypoints, queryDescriptors = sift.detectAndCompute(query_img_bw, None)
@@ -270,35 +278,37 @@ def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, 
         matches = matcher.knnMatch(queryDescriptors, trainDescriptors, k=2)  # knnMatch
         good_matches = []
         for m, n in matches:
-            if m.distance < 0.9 * n.distance:
+            if m.distance < 0.85 * n.distance:
                 good_matches.append(m)
 
-        # good_matches = sorted(good_matches, key=lambda x: x.distance)
+        good_matches = sorted(good_matches, key=lambda x: x.distance)
 
         if len(good_matches) > MIN_MATCH_COUNT:
+            # try to transform the static into the moving
             save_as = None
             if save_images:
                 save_as = "frame_{}.png".format(i)
-            # try to transform the static into the moving
-            ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
-                                         transform_image=train_img_bw,
-                                         transform_features=(trainKeypoints, trainDescriptors),
-                                         matches=good_matches, show_images=show_images, save_as=save_as)
+            homography = ut.homography_transformation(refer_image=query_img_bw,
+                                                      refer_features=(queryKeypoints, queryDescriptors),
+                                                      transform_image=train_img_bw,
+                                                      transform_features=(trainKeypoints, trainDescriptors),
+                                                      matches=good_matches, show_images=show_images, save_as=save_as)
+
+            final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches, None,
+                                        flags=2)
+            final_img = cv2.resize(final_img, (1000, 650))
+
+            # Show the final image
+            if show_images:
+                cv2.imshow("Matches", final_img)
+                cv2.waitKey(0)
+            # Save the final image
+            if save_images:
+                if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
+                    os.mkdir(cst.MATCHING_RESULTS_FOLDER_PATH)
+                cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
         else:
             print("Not enough matches are found - %d/%d" % (len(good_matches), MIN_MATCH_COUNT))
-
-        final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches, None, flags=2)
-        final_img = cv2.resize(final_img, (1000, 650))
-
-        # Show the final image
-        if show_images:
-            cv2.imshow("Matches", final_img)
-            cv2.waitKey(0)
-        # Save the final image
-        if save_images:
-            if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
-                os.mkdir(cst.MATCHING_RESULTS_FOLDER_PATH)
-            cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
 
 
 def compute(sync=False):
@@ -312,7 +322,7 @@ def compute(sync=False):
         sync_videos(video_static_path, video_moving_path)
 
     extract_features(frames_static_folder, frames_moving_folder, show_images=True, save_images=False)
-    # extract_features_SIFT(frames_static_folder, frames_moving_folder, show_images=True, save_images=True)
+    # extract_features_SIFT(frames_static_folder, frames_moving_folder, show_images=True, save_images=False)
 
 
 # Press the green button in the gutter to run the script.

@@ -114,7 +114,7 @@ def image_enchantment(image, params):
     return image
 
 
-# homography transformation of the transform into the refer image
+# find homography matrix and do perspective transform
 def homography_transformation(refer_image, refer_features, transform_image, transform_features, matches,
                               show_images=True, save_as=None):
     import os
