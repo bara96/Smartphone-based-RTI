@@ -1,6 +1,7 @@
 # Import required modules
 import cv2
 import numpy as np
+import constants as cst
 
 
 # plot signal waves
@@ -115,7 +116,9 @@ def image_enchantment(image, params):
 
 # homography transformation of the transform into the refer image
 def homography_transformation(refer_image, refer_features, transform_image, transform_features, matches,
-                              show_images=True):
+                              show_images=True, save_as=None):
+    import os
+
     kp_refer_image, desc_refer_image = refer_features[0], refer_features[1]
     kp_transform_image, desc_transform_image = transform_features[0], transform_features[1]
 
@@ -133,5 +136,9 @@ def homography_transformation(refer_image, refer_features, transform_image, tran
     if show_images:
         cv2.imshow("Transformed", im_out)
         cv2.waitKey(0)
+    if save_as is not None:
+        if not os.path.isdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH):
+            os.mkdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH)
+        cv2.imwrite(cst.TRANSFORMATION_RESULTS_FOLDER_PATH + '/' + save_as, im_out)
 
     return im_out

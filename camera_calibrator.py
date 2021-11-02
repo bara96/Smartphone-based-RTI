@@ -1,13 +1,8 @@
 # Import required modules
+import constants as cst
 import os
 import cv2
 import numpy as np
-
-INTRINSICS_STATIC_PATH = 'assets/intrinsics_static.xml'
-INTRINSICS_MOVING_PATH = 'assets/intrinsics_moving.xml'
-ASSETS_BASE_FOLDER = 'assets/G3DCV2021_data'
-ASSETS_STATIC_FOLDER = ASSETS_BASE_FOLDER + '/cam1 - static'
-ASSETS_MOVING_FOLDER = ASSETS_BASE_FOLDER + '/cam2 - moving light'
 
 
 # Calibrate the camera reading video frames
@@ -118,8 +113,8 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
 
 
 def compute():
-    calibrate(ASSETS_STATIC_FOLDER + '/calibration.mov', save_path=INTRINSICS_STATIC_PATH, show_images=False)
-    calibrate(ASSETS_MOVING_FOLDER + '/calibration.mp4', save_path=INTRINSICS_MOVING_PATH, show_images=False)
+    calibrate(cst.ASSETS_STATIC_FOLDER + '/calibration.mov', save_path=cst.INTRINSICS_STATIC_PATH, show_images=False)
+    calibrate(cst.ASSETS_MOVING_FOLDER + '/calibration.mp4', save_path=cst.INTRINSICS_MOVING_PATH, show_images=False)
 
 
 # Press the green button in the gutter to run the script.

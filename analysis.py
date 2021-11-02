@@ -1,15 +1,14 @@
 # Import required modules
-import camera_calibrator
-import camera_calibrator as cc
+import constants as cst
 import shutil
 import os
 import cv2
 import math
 import numpy as np
+from matplotlib import pyplot as plt
 import utilities as ut
 from moviepy.editor import VideoFileClip
 
-FRAMES_FOLDER_PATH = 'assets/frames'
 
 
 # video_static: first VideoFileClip
@@ -60,7 +59,7 @@ def get_audio_offset(video_static, video_moving):
 # offset: starting offset for the video
 # dir_name: directory name where to save the frames
 def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frames=30, offset=0, dir_name='sample'):
-    SAVE_PATH = FRAMES_FOLDER_PATH + "/" + dir_name
+    SAVE_PATH = cst.FRAMES_FOLDER_PATH + "/" + dir_name
 
     if not os.path.isfile(calibration_file_path):
         raise Exception('intrinsics file not found!')
@@ -71,8 +70,8 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
         distortion = Kfile.getNode("distortion").mat()
 
     # create BASE_SAVE_PATH folder if not exists
-    if not os.path.exists(FRAMES_FOLDER_PATH):
-        os.mkdir(FRAMES_FOLDER_PATH)
+    if not os.path.exists(cst.FRAMES_FOLDER_PATH):
+        os.mkdir(cst.FRAMES_FOLDER_PATH)
 
     # delete previous saved frames images, otherwise create SAVE_PATH folder
     if os.path.exists(SAVE_PATH):
@@ -133,14 +132,14 @@ def sync_videos(video_static_path, video_moving_path):
 
     # generate frames for static video
     generate_video_frames(video_path=video_static_path,
-                          calibration_file_path=cc.INTRINSICS_STATIC_PATH,
+                          calibration_file_path=cst.INTRINSICS_STATIC_PATH,
                           tot_frames=tot_frames,
                           dir_name=video_static_dir,
                           offset=video_static_offset)
 
     # generate frames for moving video
     generate_video_frames(video_path=video_moving_path,
-                          calibration_file_path=cc.INTRINSICS_MOVING_PATH,
+                          calibration_file_path=cst.INTRINSICS_MOVING_PATH,
                           tot_frames=tot_frames,
                           dir_name=video_moving_dir,
                           offset=video_moving_offset)
@@ -149,7 +148,7 @@ def sync_videos(video_static_path, video_moving_path):
 # feature matching using ORB algorithm
 # frames_folder: path to the images
 # train_image_path: path to the train image
-def extract_features(frames_static_folder_path, frames_moving_folder_path, show_images=True):
+def extract_features(frames_static_folder_path, frames_moving_folder_path, show_images=False, save_images=False):
     if not os.path.isdir(frames_static_folder_path):
         raise Exception('Static folder not found!')
     if not os.path.isdir(frames_moving_folder_path):
@@ -180,6 +179,10 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path, show_
         train_img_bw = ut.image_enchantment(train_img_bw, params)
         query_img_bw = ut.image_enchantment(query_img_bw, params)
 
+        histr = cv2.calcHist([train_img_bw],[0],None,[256],[0,256])
+        plt.plot(histr)
+        # plt.show()
+
         # Now detect the keypoints and
         # compute the descriptors for the query image and train image
         queryKeypoints, queryDescriptors = orb.detectAndCompute(query_img_bw, None)
@@ -193,7 +196,7 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path, show_
         ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
                                      transform_image=train_img_bw,
                                      transform_features=(trainKeypoints, trainDescriptors),
-                                     matches=good_matches, show_images=True)
+                                     matches=good_matches, show_images=show_images, save_as="frame_{}.png".format(i))
 
         # draw the matches to the final image containing both the images
         # Draw first 10 matches
@@ -204,10 +207,14 @@ def extract_features(frames_static_folder_path, frames_moving_folder_path, show_
         if show_images:
             cv2.imshow("Matches", final_img)
             cv2.waitKey(0)
-        cv2.imwrite('assets/test/frame_{}.png'.format(i), final_img)
+        # Save the final image
+        if save_images:
+            if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
+                os.mkdir(cst.MATCHING_RESULTS_FOLDER_PATH)
+            cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
 
 
-def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, use_knn=False, show_images=True):
+def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, show_images=False, save_images=False):
     if not os.path.isdir(frames_static_folder_path):
         raise Exception('Static folder not found!')
     if not os.path.isdir(frames_moving_folder_path):
@@ -262,7 +269,7 @@ def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, 
             ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
                                          transform_image=train_img_bw,
                                          transform_features=(trainKeypoints, trainDescriptors),
-                                         matches=good_matches, show_images=True)
+                                         matches=good_matches, show_images=show_images, save_as="frame_{}.png".format(i))
         else:
             print("Not enough matches are found - %d/%d" % (len(good_matches), MIN_MATCH_COUNT))
 
@@ -273,21 +280,25 @@ def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, 
         if show_images:
             cv2.imshow("Matches", final_img)
             cv2.waitKey(0)
-        cv2.imwrite('assets/test/frame_{}.png'.format(i), final_img)
+        # Save the final image
+        if save_images:
+            if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
+                os.mkdir(cst.MATCHING_RESULTS_FOLDER_PATH)
+            cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
 
 
 def compute(sync=False):
     coin = 'coin1'
-    video_static_path = cc.ASSETS_STATIC_FOLDER + '/{}.mov'.format(coin)
-    video_moving_path = cc.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(coin)
-    frames_static_folder = FRAMES_FOLDER_PATH + '/static_{}'.format(coin)
-    frames_moving_folder = FRAMES_FOLDER_PATH + '/moving_{}'.format(coin)
+    video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(coin)
+    video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(coin)
+    frames_static_folder = cst.FRAMES_FOLDER_PATH + '/static_{}'.format(coin)
+    frames_moving_folder = cst.FRAMES_FOLDER_PATH + '/moving_{}'.format(coin)
 
     if sync:
         sync_videos(video_static_path, video_moving_path)
 
-    extract_features(frames_static_folder, frames_moving_folder)
-    # extract_features_SIFT(frames_static_folder, frames_moving_folder)
+    extract_features(frames_static_folder, frames_moving_folder, show_images=False, save_images=True)
+    # extract_features_SIFT(frames_static_folder, frames_moving_folder, show_images=True, save_images=True)
 
 
 # Press the green button in the gutter to run the script.
