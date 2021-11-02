@@ -101,7 +101,7 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
         frame_new, roi = ut.undistort_image(frame, matrix, distortion)
         # save image
         cv2.imwrite(SAVE_PATH + '/frame_' + str(i) + '.png', frame_new)
-        # cv2.imshow('frame', frame_new)
+        # cv2.imshow('frame_new', frame_new)
         # cv2.waitKey(0)
     print('Generated frames into \"{}\".. \n'.format(SAVE_PATH))
 
@@ -276,14 +276,15 @@ def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, 
         cv2.imwrite('assets/test/frame_{}.png'.format(i), final_img)
 
 
-def compute():
+def compute(sync=False):
     coin = 'coin1'
     video_static_path = cc.ASSETS_STATIC_FOLDER + '/{}.mov'.format(coin)
     video_moving_path = cc.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(coin)
     frames_static_folder = FRAMES_FOLDER_PATH + '/static_{}'.format(coin)
     frames_moving_folder = FRAMES_FOLDER_PATH + '/moving_{}'.format(coin)
 
-    # sync_videos(video_static_path, video_moving_path)
+    if sync:
+        sync_videos(video_static_path, video_moving_path)
 
     extract_features(frames_static_folder, frames_moving_folder)
     # extract_features_SIFT(frames_static_folder, frames_moving_folder)
