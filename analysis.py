@@ -9,11 +9,6 @@ from matplotlib import pyplot as plt
 import utilities as ut
 from moviepy.editor import VideoFileClip
 
-MIN_MATCH_KNN = 23
-THRESHOLD_KNN = 0.8
-MIN_MATCH_FLANN = 25
-THRESHOLD_FLANN = 0.8
-
 
 # video_static: first VideoFileClip
 # video_moving: second VideoFileClip
@@ -101,7 +96,7 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
         if ret == False:
             raise Exception('Null frame')
 
-        frame_new, roi = ut.undistort_image(frame, matrix, distortion)
+        frame_new = ut.undistort_image(frame, matrix, distortion)
         # save image
         cv2.imwrite(SAVE_PATH + '/frame_' + str(i) + '.png', frame_new)
         # cv2.imshow('frame_new', frame_new)
@@ -137,6 +132,7 @@ def sync_videos(video_static_path, video_moving_path):
     # generate frames for static video
     generate_video_frames(video_path=video_static_path,
                           calibration_file_path=cst.INTRINSICS_STATIC_PATH,
+                          n_frames=60,
                           tot_frames=tot_frames,
                           dir_name=video_static_dir,
                           offset=video_static_offset)
@@ -144,6 +140,7 @@ def sync_videos(video_static_path, video_moving_path):
     # generate frames for moving video
     generate_video_frames(video_path=video_moving_path,
                           calibration_file_path=cst.INTRINSICS_MOVING_PATH,
+                          n_frames=60,
                           tot_frames=tot_frames,
                           dir_name=video_moving_dir,
                           offset=video_moving_offset)
@@ -205,11 +202,11 @@ def extract_features_KNN(frames_static_folder_path, frames_moving_folder_path, s
         # Apply ratio test
         good_matches = []
         for m, n in matches:
-            if m.distance < THRESHOLD_KNN * n.distance:
+            if m.distance < cst.THRESHOLD_KNN * n.distance:
                 good_matches.append(m)
         good_matches = sorted(good_matches, key=lambda x: x.distance)
 
-        if len(good_matches) >= MIN_MATCH_KNN:
+        if len(good_matches) >= cst.MIN_MATCH_KNN:
             n_accepted += 1
             # try to transform the static into the moving
             save_as = None
@@ -240,7 +237,7 @@ def extract_features_KNN(frames_static_folder_path, frames_moving_folder_path, s
                 cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
         else:
             n_discarded += 1
-            print("Not enough matches are found - %d/%d" % (len(good_matches), MIN_MATCH_KNN))
+            print("Not enough matches are found - %d/%d" % (len(good_matches), cst.MIN_MATCH_KNN))
 
     print("\nN° of accepted frames: ", n_accepted)
     print("N° of discarded frames: ", n_discarded, "\n")
@@ -301,12 +298,12 @@ def extract_features_FLANN(frames_static_folder_path, frames_moving_folder_path,
         # Apply ratio test
         good_matches = []
         for m, n in matches:
-            if m.distance < THRESHOLD_FLANN * n.distance:
+            if m.distance < cst.THRESHOLD_FLANN * n.distance:
                 good_matches.append(m)
         # sort matches in by distance
         good_matches = sorted(good_matches, key=lambda x: x.distance)
 
-        if len(good_matches) >= MIN_MATCH_FLANN:
+        if len(good_matches) >= cst.MIN_MATCH_FLANN:
             n_accepted += 1
             # try to transform the static into the moving
             save_as = None
@@ -333,7 +330,7 @@ def extract_features_FLANN(frames_static_folder_path, frames_moving_folder_path,
                 cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
         else:
             n_discarded += 1
-            print("Not enough matches are found - %d/%d" % (len(good_matches), MIN_MATCH_FLANN))
+            print("Not enough matches are found - %d/%d" % (len(good_matches), cst.MIN_MATCH_FLANN))
 
     print("\nN° of accepted frames: ", n_accepted)
     print("N° of discarded frames: ", n_discarded, "\n")

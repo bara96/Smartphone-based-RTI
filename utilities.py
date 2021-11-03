@@ -58,8 +58,11 @@ def undistort_image(image, matrix, distortion):
     new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(matrix, distortion, (w, h), 0)
     # Undistort image
     image_new = cv2.undistort(image, matrix, distortion, None, new_camera_matrix)
+    # crop the image
+    x, y, w, h = roi
+    image_new = image_new[y:y + h, x:x + w]
 
-    return image_new, roi
+    return image_new
 
 
 # return total n° of frames of a video
