@@ -132,6 +132,7 @@ def homography_transformation(refer_image, refer_features, transform_image, tran
                                .pt for m in matches]).reshape(-1, 1, 2)
 
     matrix, mask = cv2.findHomography(refer_pts, transform_pts, cv2.RANSAC, 5.0)
+    matchesMask = mask.ravel().tolist()
 
     # Warp query image to train image based on homography
     im_out = cv2.warpPerspective(transform_image, matrix, (refer_image.shape[1], refer_image.shape[0]))
