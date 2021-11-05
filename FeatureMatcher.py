@@ -23,10 +23,15 @@ class FeatureMatcher:
         self.matching_algorithm = matching_algorithm
         self.algorithm_params = algorithm_params
 
-    def setKNNTreshold(self):
-        self.algorithm_params = dict(min_match=20, threshold=0.8)
+    def setORBTreshold(self, matcher):
+        if matcher == self.MATCHING_ALGORITHM_KNN:
+            self.algorithm_params = dict(min_match=40, threshold=0.85)
+        elif matcher == self.MATCHING_ALGORITHM_FLANN:
+            self.algorithm_params = dict(min_match=48, threshold=0.85)
+        else:
+            self.algorithm_params = dict(min_match=10, threshold=0.75)
 
-    def setFLANNTreshold(self):
+    def setSIFTTreshold(self):
         self.algorithm_params = dict(min_match=20, threshold=0.75)
 
     # prepare matcher
@@ -118,13 +123,8 @@ class FeatureMatcher:
             # Read the query image
             # The query image is what we need to find in train image
             query_img = cv2.imread(self.frames_moving_folder_path + "/frame_{}.png".format(i))
-            query_img = ut.CLAHE(query_img)
+            query_img = ut.enchant_brightness_and_contrast(query_img)
             query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
-
-            # try to enchant the pictures for easier features recognition
-            params = []
-            train_img_bw = ut.image_enchantment(train_img_bw, params)
-            query_img_bw = ut.image_enchantment(query_img_bw, params)
 
             if plot_histogram:
                 histr = cv2.calcHist([train_img_bw], [0], None, [256], [0, 256])
@@ -154,6 +154,7 @@ class FeatureMatcher:
             # good_matches = sorted(good_matches, key=lambda x: x.distance)
 
             if len(good_matches) >= MIN_MATCH:
+                print("Matches found - %d/%d" % (len(good_matches), MIN_MATCH))
                 n_accepted += 1
                 # try to transform the static into the moving
                 save_as = None
