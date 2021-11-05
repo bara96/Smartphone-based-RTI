@@ -23,7 +23,7 @@ class FeatureMatcher:
         self.matching_algorithm = matching_algorithm
         self.algorithm_params = algorithm_params
 
-    def setORBTreshold(self, matcher):
+    def setOrbTreshold(self, matcher):
         if matcher == self.MATCHING_ALGORITHM_KNN:
             self.algorithm_params = dict(min_match=40, threshold=0.85)
         elif matcher == self.MATCHING_ALGORITHM_FLANN:
@@ -31,8 +31,11 @@ class FeatureMatcher:
         else:
             self.algorithm_params = dict(min_match=10, threshold=0.75)
 
-    def setSIFTTreshold(self):
-        self.algorithm_params = dict(min_match=20, threshold=0.75)
+    def setSiftTreshold(self, matcher):
+        if matcher == self.MATCHING_ALGORITHM_FLANN:
+            self.algorithm_params = dict(min_match=11, threshold=0.75)
+        else:
+            self.algorithm_params = dict(min_match=10, threshold=0.75)
 
     # prepare matcher
     def prepareMatcher(self):

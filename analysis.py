@@ -160,7 +160,7 @@ def compute(sync=False):
     fm = FeatureMatcher(frames_static_folder, frames_moving_folder,
                         detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_ORB,
                         matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_FLANN)
-    fm.setORBTreshold(FeatureMatcher.MATCHING_ALGORITHM_FLANN)
+    fm.setOrbTreshold(FeatureMatcher.MATCHING_ALGORITHM_FLANN)
     fm.extract_features(show_images=True, save_images=False, plot_histogram=False)
 
 
