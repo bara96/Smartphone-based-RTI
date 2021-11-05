@@ -58,8 +58,11 @@ def undistort_image(image, matrix, distortion):
     new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(matrix, distortion, (w, h), 0)
     # Undistort image
     image_new = cv2.undistort(image, matrix, distortion, None, new_camera_matrix)
+    # crop the image
+    x, y, w, h = roi
+    image_new = image_new[y:y + h, x:x + w]
 
-    return image_new, roi
+    return image_new
 
 
 # return total n° of frames of a video
@@ -114,7 +117,7 @@ def image_enchantment(image, params):
     return image
 
 
-# homography transformation of the transform into the refer image
+# find homography matrix and do perspective transform
 def homography_transformation(refer_image, refer_features, transform_image, transform_features, matches,
                               show_images=True, save_as=None):
     import os
@@ -129,6 +132,7 @@ def homography_transformation(refer_image, refer_features, transform_image, tran
                                .pt for m in matches]).reshape(-1, 1, 2)
 
     matrix, mask = cv2.findHomography(refer_pts, transform_pts, cv2.RANSAC, 5.0)
+    matchesMask = mask.ravel().tolist()
 
     # Warp query image to train image based on homography
     im_out = cv2.warpPerspective(transform_image, matrix, (refer_image.shape[1], refer_image.shape[0]))

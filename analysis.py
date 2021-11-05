@@ -8,7 +8,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import utilities as ut
 from moviepy.editor import VideoFileClip
-
+from FeatureMatcher import FeatureMatcher
 
 
 # video_static: first VideoFileClip
@@ -97,7 +97,7 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
         if ret == False:
             raise Exception('Null frame')
 
-        frame_new, roi = ut.undistort_image(frame, matrix, distortion)
+        frame_new = ut.undistort_image(frame, matrix, distortion)
         # save image
         cv2.imwrite(SAVE_PATH + '/frame_' + str(i) + '.png', frame_new)
         # cv2.imshow('frame_new', frame_new)
@@ -133,6 +133,7 @@ def sync_videos(video_static_path, video_moving_path):
     # generate frames for static video
     generate_video_frames(video_path=video_static_path,
                           calibration_file_path=cst.INTRINSICS_STATIC_PATH,
+                          n_frames=60,
                           tot_frames=tot_frames,
                           dir_name=video_static_dir,
                           offset=video_static_offset)
@@ -140,165 +141,10 @@ def sync_videos(video_static_path, video_moving_path):
     # generate frames for moving video
     generate_video_frames(video_path=video_moving_path,
                           calibration_file_path=cst.INTRINSICS_MOVING_PATH,
+                          n_frames=60,
                           tot_frames=tot_frames,
                           dir_name=video_moving_dir,
                           offset=video_moving_offset)
-
-
-# feature matching using ORB algorithm
-# frames_folder: path to the images
-# train_image_path: path to the train image
-def extract_features(frames_static_folder_path, frames_moving_folder_path, show_images=False, save_images=False):
-    if not os.path.isdir(frames_static_folder_path):
-        raise Exception('Static folder not found!')
-    if not os.path.isdir(frames_moving_folder_path):
-        raise Exception('Moving folder not found!')
-
-    list_static = os.listdir(frames_static_folder_path)  # dir is your directory path
-    n_files_static = len(list_static)
-    list_moving = os.listdir(frames_moving_folder_path)  # dir is your directory path
-    n_files_moving = len(list_moving)
-    tot_frames = min(n_files_static, n_files_moving)
-
-    # Initialize the ORB detector algorithm
-    orb = cv2.ORB_create()
-    # Initialize the Matcher for matching the keypoints
-    matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-
-    dataset = []
-    for i in range(0, tot_frames):
-        # Read the train image
-        train_img = cv2.imread(frames_static_folder_path + "/frame_{}.png".format(i))
-        train_img_bw = cv2.cvtColor(train_img, cv2.COLOR_BGR2GRAY)
-        # Read the query image
-        # The query image is what we need to find in train image
-        query_img = cv2.imread(frames_moving_folder_path + "/frame_{}.png".format(i))
-        query_img = ut.CLAHE(query_img)
-        query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
-
-        # try to enchant the pictures for easier features recognition
-        params = []
-        train_img_bw = ut.image_enchantment(train_img_bw, params)
-        query_img_bw = ut.image_enchantment(query_img_bw, params)
-
-        plot = False
-        if plot:
-            histr = cv2.calcHist([train_img_bw], [0], None, [256], [0, 256])
-            plt.plot(histr)
-            plt.show(block=False)
-
-            histr = cv2.calcHist([query_img_bw], [0], None, [256], [0, 256])
-            plt.plot(histr)
-            plt.show(block=False)
-
-        # Now detect the keypoints and
-        # compute the descriptors for the query image and train image
-        queryKeypoints, queryDescriptors = orb.detectAndCompute(query_img_bw, None)
-        trainKeypoints, trainDescriptors = orb.detectAndCompute(train_img_bw, None)
-
-        # match the keypoints and sort them in the order of their distance.
-        matches = matcher.match(queryDescriptors, trainDescriptors)
-        good_matches = sorted(matches, key=lambda x: x.distance)
-
-        save_as = None
-        if save_images:
-            save_as = "frame_{}.png".format(i)
-        # try to transform the static into the moving
-        homography = ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
-                                     transform_image=train_img_bw,
-                                     transform_features=(trainKeypoints, trainDescriptors),
-                                     matches=good_matches, show_images=show_images, save_as=save_as)
-
-        # dataset.append((queryKeypoints, queryDescriptors, homography))
-
-        # draw the matches to the final image containing both the images
-        # Draw first 10 matches
-        final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches[:10], None)
-        final_img = cv2.resize(final_img, (1000, 650))
-
-        # Show the final image
-        if show_images:
-            cv2.imshow("Matches", final_img)
-            cv2.waitKey(0)
-            plt.close()
-        # Save the final image
-        if save_images:
-            if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
-                os.mkdir(cst.MATCHING_RESULTS_FOLDER_PATH)
-            cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
-
-
-def extract_features_SIFT(frames_static_folder_path, frames_moving_folder_path, show_images=False, save_images=False):
-    if not os.path.isdir(frames_static_folder_path):
-        raise Exception('Static folder not found!')
-    if not os.path.isdir(frames_moving_folder_path):
-        raise Exception('Moving folder not found!')
-
-    list_static = os.listdir(frames_static_folder_path)  # dir is your directory path
-    n_files_static = len(list_static)
-    list_moving = os.listdir(frames_moving_folder_path)  # dir is your directory path
-    n_files_moving = len(list_moving)
-    tot_frames = min(n_files_static, n_files_moving)
-
-    sift = cv2.SIFT_create()
-
-    MIN_MATCH_COUNT = 20
-    # FLANN parameters
-    FLANN_INDEX_KDTREE = 0
-    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
-    search_params = dict(checks=50)
-
-    matcher = cv2.FlannBasedMatcher(index_params, search_params)
-
-    for i in range(0, tot_frames):
-        # Read the train image
-        train_img = cv2.imread(frames_static_folder_path + "/frame_{}.png".format(i))
-        train_img_bw = cv2.cvtColor(train_img, cv2.COLOR_BGR2GRAY)
-        # Read the query image
-        # The query image is what we need to find in train image
-        query_img = cv2.imread(frames_moving_folder_path + "/frame_{}.png".format(i))
-        query_img = ut.enchant_brightness_and_contrast(query_img)
-        query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
-
-
-        # Now detect the keypoints and
-        # compute the descriptors for the query image and train image
-        queryKeypoints, queryDescriptors = sift.detectAndCompute(query_img_bw, None)
-        trainKeypoints, trainDescriptors = sift.detectAndCompute(train_img_bw, None)
-
-        # store all the good matches as per Lowe's ratio test.
-        matches = matcher.knnMatch(queryDescriptors, trainDescriptors, k=2)  # knnMatch
-        good_matches = []
-        for m, n in matches:
-            if m.distance < 0.9 * n.distance:
-                good_matches.append(m)
-
-        # good_matches = sorted(good_matches, key=lambda x: x.distance)
-
-        if len(good_matches) > MIN_MATCH_COUNT:
-            save_as = None
-            if save_images:
-                save_as = "frame_{}.png".format(i)
-            # try to transform the static into the moving
-            ut.homography_transformation(refer_image=query_img_bw, refer_features=(queryKeypoints, queryDescriptors),
-                                         transform_image=train_img_bw,
-                                         transform_features=(trainKeypoints, trainDescriptors),
-                                         matches=good_matches, show_images=show_images, save_as=save_as)
-        else:
-            print("Not enough matches are found - %d/%d" % (len(good_matches), MIN_MATCH_COUNT))
-
-        final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches, None, flags=2)
-        final_img = cv2.resize(final_img, (1000, 650))
-
-        # Show the final image
-        if show_images:
-            cv2.imshow("Matches", final_img)
-            cv2.waitKey(0)
-        # Save the final image
-        if save_images:
-            if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
-                os.mkdir(cst.MATCHING_RESULTS_FOLDER_PATH)
-            cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
 
 
 def compute(sync=False):
@@ -311,8 +157,11 @@ def compute(sync=False):
     if sync:
         sync_videos(video_static_path, video_moving_path)
 
-    extract_features(frames_static_folder, frames_moving_folder, show_images=True, save_images=False)
-    # extract_features_SIFT(frames_static_folder, frames_moving_folder, show_images=True, save_images=True)
+    fm = FeatureMatcher(frames_static_folder, frames_moving_folder,
+                        detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_ORB,
+                        matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_FLANN)
+    fm.setORBTreshold(FeatureMatcher.MATCHING_ALGORITHM_FLANN)
+    fm.extract_features(show_images=True, save_images=False, plot_histogram=False)
 
 
 # Press the green button in the gutter to run the script.
