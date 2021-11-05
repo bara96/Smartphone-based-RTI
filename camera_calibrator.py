@@ -1,13 +1,9 @@
 # Import required modules
+import constants as cst
 import os
 import cv2
 import numpy as np
 
-INTRINSICS_STATIC_PATH = 'assets/intrinsics_static.xml'
-INTRINSICS_MOVING_PATH = 'assets/intrinsics_moving.xml'
-ASSETS_BASE_FOLDER = 'assets/G3DCV2021_data'
-ASSETS_STATIC_FOLDER = ASSETS_BASE_FOLDER + '/cam1 - static'
-ASSETS_MOVING_FOLDER = ASSETS_BASE_FOLDER + '/cam2 - moving light'
 
 # Calibrate the camera reading video frames
 # video_path: path where to get the video
@@ -32,7 +28,7 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
     # Vector for 2D points
     twodpoints = []
 
-    gray_color = None
+    image_gray = None
 
     #  3D points real world coordinates
     objectp3d = np.zeros((1, CHECKERBOARD[0]
@@ -40,8 +36,8 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
                           3), np.float32)
     objectp3d[0, :, :2] = np.mgrid[0:CHECKERBOARD[0],
                           0:CHECKERBOARD[1]].T.reshape(-1, 2)
-    prev_img_shape = None
 
+    print("Calibrating... \n")
     n_frames_read = 0
     n_frame = 0
     video = cv2.VideoCapture(video_path)
@@ -51,13 +47,13 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
         video.set(1, n_frame)  # grab a frame every n
         if ret:
             n_frames_read += 1
-            gray_color = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
             # Find the chess board corners
             # If desired number of corners are
             # found in the image then ret = true
             ret, corners = cv2.findChessboardCorners(
-                gray_color, CHECKERBOARD,
+                image_gray, CHECKERBOARD,
                 cv2.CALIB_CB_ADAPTIVE_THRESH
                 + cv2.CALIB_CB_FAST_CHECK +
                 cv2.CALIB_CB_NORMALIZE_IMAGE)
@@ -71,7 +67,7 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
                 # Refining pixel coordinates
                 # for given 2d points.
                 corners2 = cv2.cornerSubPix(
-                    gray_color, corners, (11, 11), (-1, -1), criteria)
+                    image_gray, corners, (11, 11), (-1, -1), criteria)
 
                 twodpoints.append(corners2)
 
@@ -91,11 +87,11 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
     # passing the value of above found out 3D points (threedpoints)
     # and its corresponding pixel coordinates of the
     # detected corners (twodpoints)
-    print("N° of frames taken: ", n_frames_read, "\n")
-    print("Calibrating... \n")
-    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera(threedpoints, twodpoints, gray_color.shape[::-1],
+
+    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera(threedpoints, twodpoints, image_gray.shape[::-1],
                                                                     None, None)
 
+    print("Calibration ended... \n")
     # Displaying required output
     print("Camera matrix: \n")
     print(matrix)
@@ -113,9 +109,14 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
     Kfile = cv2.FileStorage(save_path, cv2.FILE_STORAGE_WRITE)
     Kfile.write("K", matrix)
     Kfile.write("distortion", distortion)
+    print("Calibration saved: \"{}\" \n".format(save_path))
+
+
+def compute():
+    calibrate(cst.ASSETS_STATIC_FOLDER + '/calibration.mov', save_path=cst.INTRINSICS_STATIC_PATH, show_images=False)
+    calibrate(cst.ASSETS_MOVING_FOLDER + '/calibration.mp4', save_path=cst.INTRINSICS_MOVING_PATH, show_images=False)
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    calibrate(ASSETS_STATIC_FOLDER + '/calibration.mov', save_path=INTRINSICS_STATIC_PATH, show_images=False)
-    calibrate(ASSETS_MOVING_FOLDER + '/calibration.mp4', save_path=INTRINSICS_MOVING_PATH, show_images=False)
+    compute()
