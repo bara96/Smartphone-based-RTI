@@ -3,6 +3,7 @@ import cv2
 import constants as cst
 from matplotlib import pyplot as plt
 import utilities as ut
+import numpy as np
 
 
 class FeatureMatcher:
@@ -27,13 +28,13 @@ class FeatureMatcher:
         if matcher == self.MATCHING_ALGORITHM_KNN:
             self.algorithm_params = dict(min_match=40, threshold=0.85)
         elif matcher == self.MATCHING_ALGORITHM_FLANN:
-            self.algorithm_params = dict(min_match=48, threshold=0.85)
+            self.algorithm_params = dict(min_match=20, threshold=0.85)
         else:
             self.algorithm_params = dict(min_match=10, threshold=0.75)
 
     def setSiftTreshold(self, matcher):
         if matcher == self.MATCHING_ALGORITHM_FLANN:
-            self.algorithm_params = dict(min_match=11, threshold=0.75)
+            self.algorithm_params = dict(min_match=15, threshold=0.8)
         else:
             self.algorithm_params = dict(min_match=10, threshold=0.75)
 
@@ -129,6 +130,9 @@ class FeatureMatcher:
             query_img = ut.enchant_brightness_and_contrast(query_img)
             query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
+            train_img_bw = ut.image_enchantment(train_img_bw, [cv2.MORPH_OPEN], 5)
+            query_img_bw = ut.image_enchantment(query_img_bw, [cv2.MORPH_OPEN])
+
             if plot_histogram:
                 histr = cv2.calcHist([train_img_bw], [0], None, [256], [0, 256])
                 plt.plot(histr)
@@ -145,16 +149,17 @@ class FeatureMatcher:
 
             # match the keypoints and sort them in the order of their distance.
             if self.detector_algorithm == self.DETECTOR_ALGORITHM_ORB and self.matching_algorithm == self.MATCHING_ALGORITHM_BRUTEFORCE:
-                good_matches = matcher.match(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors)
+                matches = matcher.match(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors)
+                good_matches = matches
             else:
                 matches = matcher.knnMatch(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors, k=2)
-                # Apply ratio test
+                # Apply Lowe ratio test
                 good_matches = []
                 for m, n in matches:
                     if m.distance < THRESHOLD * n.distance:
                         good_matches.append(m)
 
-            # good_matches = sorted(good_matches, key=lambda x: x.distance)
+            good_matches = sorted(good_matches, key=lambda x: x.distance)
 
             if len(good_matches) >= MIN_MATCH:
                 print("Matches found - %d/%d" % (len(good_matches), MIN_MATCH))
@@ -164,10 +169,10 @@ class FeatureMatcher:
                 if save_images:
                     save_as = "frame_{}.png".format(i)
 
-                homography = ut.homography_transformation(refer_image=query_img_bw,
-                                                          refer_features=(queryKeypoints, queryDescriptors),
-                                                          transform_image=train_img_bw,
-                                                          transform_features=(trainKeypoints, trainDescriptors),
+                homography = ut.homography_transformation(query_image=query_img,
+                                                          query_features=(queryKeypoints, queryDescriptors),
+                                                          train_image=train_img,
+                                                          train_features=(trainKeypoints, trainDescriptors),
                                                           matches=good_matches, show_images=show_images,
                                                           save_as=save_as)
 
