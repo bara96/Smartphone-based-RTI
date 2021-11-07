@@ -138,11 +138,11 @@ class FeatureMatcher:
             trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
 
             if plot_histogram:
-                histr = cv2.calcHist([train_img_bw], [0], None, [256], [0, 256])
+                histr = cv2.calcHist([train_img], [0], None, [256], [0, 256])
                 plt.plot(histr)
                 plt.show(block=False)
 
-                histr = cv2.calcHist([query_img_bw], [0], None, [256], [0, 256])
+                histr = cv2.calcHist([query_img], [0], None, [256], [0, 256])
                 plt.plot(histr)
                 plt.show(block=False)
 
@@ -181,7 +181,6 @@ class FeatureMatcher:
                     print("Inaccurate homography")
 
                 # draw the matches to the final image containing both the images
-                # Draw first 10 matches
                 final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches,
                                             None)
                 final_img = cv2.resize(final_img, (1000, 650))

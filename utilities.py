@@ -152,18 +152,12 @@ def homography_transformation(query_image, query_features, train_image, train_fe
                            .pt for m in matches]).reshape(-1, 1, 2)
 
     if transform_train:
-        # transform train into query
+        # Warp train image into query image based on homography
         matrix, mask = cv2.findHomography(train_pts, query_pts, cv2.RANSAC, 5.0)
-        matchesMask = mask.ravel().tolist()
-
-        # Warp query image to train image based on homography
         im_out = cv2.warpPerspective(train_image, matrix, (query_image.shape[1], query_image.shape[0]))
     else:
-        # transform query into train
+        # Warp train image into query image based on homography
         matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
-        matchesMask = mask.ravel().tolist()
-
-        # Warp query image to train image based on homography
         im_out = cv2.warpPerspective(query_image, matrix, (train_image.shape[1], train_image.shape[0]))
 
     if show_images:
