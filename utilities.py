@@ -117,6 +117,27 @@ def image_enchantment(image, params, iterations=1):
     return image
 
 
+def homography_check(train_image, homography_image):
+    detector_alg = cv2.ORB_create()
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+
+    train_img_bw = cv2.cvtColor(train_image, cv2.COLOR_BGR2GRAY)
+    query_img_bw = cv2.cvtColor(homography_image, cv2.COLOR_BGR2GRAY)
+
+    queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
+    trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
+    matches = matcher.knnMatch(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors, k=2)
+    # Apply Lowe ratio test
+    good_matches = []
+    for m, n in matches:
+        if m.distance < 0.75 * n.distance:
+            good_matches.append(m)
+
+    if len(good_matches) < 10:
+        return False
+    return True
+
+
 # find homography matrix and do perspective transform, train => query
 def homography_transformation(query_image, query_features, train_image, train_features, matches,
                               transform_train=True, show_images=True, save_as=None):
@@ -153,7 +174,10 @@ def homography_transformation(query_image, query_features, train_image, train_fe
             os.mkdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH)
         cv2.imwrite(cst.TRANSFORMATION_RESULTS_FOLDER_PATH + '/' + save_as, im_out)
 
-    return matrix
+    if homography_check(train_image, im_out):
+        return matrix
+    else:
+        return None
 
 
 # Contrast Limited Adaptive Histogram Equalization

@@ -133,6 +133,10 @@ class FeatureMatcher:
             train_img_bw = ut.image_enchantment(train_img_bw, [cv2.MORPH_OPEN], 5)
             query_img_bw = ut.image_enchantment(query_img_bw, [cv2.MORPH_OPEN])
 
+            # Now detect the keypoints and compute the descriptors for the query image and train image
+            queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
+            trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
+
             if plot_histogram:
                 histr = cv2.calcHist([train_img_bw], [0], None, [256], [0, 256])
                 plt.plot(histr)
@@ -141,11 +145,6 @@ class FeatureMatcher:
                 histr = cv2.calcHist([query_img_bw], [0], None, [256], [0, 256])
                 plt.plot(histr)
                 plt.show(block=False)
-
-            # Now detect the keypoints and
-            # compute the descriptors for the query image and train image
-            queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
-            trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
 
             # match the keypoints and sort them in the order of their distance.
             if self.detector_algorithm == self.DETECTOR_ALGORITHM_ORB and self.matching_algorithm == self.MATCHING_ALGORITHM_BRUTEFORCE:
@@ -163,7 +162,6 @@ class FeatureMatcher:
 
             if len(good_matches) >= MIN_MATCH:
                 print("Matches found - %d/%d" % (len(good_matches), MIN_MATCH))
-                n_accepted += 1
                 # try to transform the static into the moving
                 save_as = None
                 if save_images:
@@ -175,8 +173,12 @@ class FeatureMatcher:
                                                           train_features=(trainKeypoints, trainDescriptors),
                                                           matches=good_matches, show_images=show_images,
                                                           save_as=save_as)
-
-                # dataset.append((queryKeypoints, queryDescriptors, homography))
+                if homography is not None:
+                    n_accepted += 1
+                    dataset.append((queryKeypoints, queryDescriptors, homography))
+                else:
+                    n_discarded += 1
+                    print("Inaccurate homography")
 
                 # draw the matches to the final image containing both the images
                 # Draw first 10 matches
