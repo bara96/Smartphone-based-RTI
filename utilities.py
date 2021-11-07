@@ -87,27 +87,27 @@ def svg_to_png(image_path):
 
 
 # enchantment of an image with morphological operations
-def image_enchantment(image, params):
+def image_enchantment(image, params, iterations=1):
     kernel = np.ones((5, 5), np.uint8)
 
     for type in params:
-        if type == 'erode':
-            image = cv2.morphologyEx(image, cv2.MORPH_ERODE, kernel)
-        if type == 'dilation':
-            cv2.morphologyEx(image, cv2.MORPH_DILATE, kernel)
-        if type == 'opening':
+        if type == cv2.MORPH_ERODE:
+            image = cv2.morphologyEx(image, cv2.MORPH_ERODE, kernel, iterations=iterations)
+        if type == cv2.MORPH_DILATE:
+            image = cv2.morphologyEx(image, cv2.MORPH_DILATE, kernel, iterations=iterations)
+        if type == cv2.MORPH_OPEN:
             # erosion followed by dilation: removing noise
-            image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
-        if type == 'closing':
+            image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel, iterations=iterations)
+        if type == cv2.MORPH_CLOSE:
             # dilation followed by erosion: closing small holes inside the foreground objects
-            image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
-        if type == 'gradient':
+            image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel, iterations=iterations)
+        if type == cv2.MORPH_GRADIENT:
             # difference between dilation and erosion of an image
-            image = cv2.morphologyEx(image, cv2.MORPH_GRADIENT, kernel)
-        if type == 'tophat':
+            image = cv2.morphologyEx(image, cv2.MORPH_GRADIENT, kernel, iterations=iterations)
+        if type == cv2.MORPH_TOPHAT:
             # difference between input image and opening of the image
-            image = cv2.morphologyEx(image, cv2.MORPH_TOPHAT, kernel)
-        if type == 'blackhat':
+            image = cv2.morphologyEx(image, cv2.MORPH_TOPHAT, kernel, iterations=iterations)
+        if type == cv2.MORPH_BLACKHAT:
             # difference between the closing of the input image and input image
             image = cv2.morphologyEx(image, cv2.MORPH_BLACKHAT, kernel)
         if type == 'sharpen':
@@ -117,25 +117,54 @@ def image_enchantment(image, params):
     return image
 
 
-# find homography matrix and do perspective transform
-def homography_transformation(refer_image, refer_features, transform_image, transform_features, matches,
-                              show_images=True, save_as=None):
+def homography_check(train_image, homography_image):
+    detector_alg = cv2.ORB_create()
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+
+    train_img_bw = cv2.cvtColor(train_image, cv2.COLOR_BGR2GRAY)
+    query_img_bw = cv2.cvtColor(homography_image, cv2.COLOR_BGR2GRAY)
+
+    queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
+    trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
+    matches = matcher.knnMatch(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors, k=2)
+    # Apply Lowe ratio test
+    good_matches = []
+    for m, n in matches:
+        if m.distance < 0.75 * n.distance:
+            good_matches.append(m)
+
+    if len(good_matches) < 10:
+        return False
+    return True
+
+
+# find homography matrix and do perspective transform, train => query
+def homography_transformation(query_image, query_features, train_image, train_features, matches,
+                              transform_train=True, show_images=True, save_as=None):
     import os
 
-    kp_refer_image, desc_refer_image = refer_features[0], refer_features[1]
-    kp_transform_image, desc_transform_image = transform_features[0], transform_features[1]
+    kp_query_image, desc_query_image = query_features[0], query_features[1]
+    kp_train_image, desc_train_image = train_features[0], train_features[1]
 
-    refer_pts = np.float32([kp_transform_image[m.trainIdx]
+    query_pts = np.float32([kp_query_image[m.queryIdx]
+                           .pt for m in matches]).reshape(-1, 1, 2)
+    train_pts = np.float32([kp_train_image[m.trainIdx]
                            .pt for m in matches]).reshape(-1, 1, 2)
 
-    transform_pts = np.float32([kp_refer_image[m.queryIdx]
-                               .pt for m in matches]).reshape(-1, 1, 2)
+    if transform_train:
+        # transform train into query
+        matrix, mask = cv2.findHomography(train_pts, query_pts, cv2.RANSAC, 5.0)
+        matchesMask = mask.ravel().tolist()
 
-    matrix, mask = cv2.findHomography(refer_pts, transform_pts, cv2.RANSAC, 5.0)
-    matchesMask = mask.ravel().tolist()
+        # Warp query image to train image based on homography
+        im_out = cv2.warpPerspective(train_image, matrix, (query_image.shape[1], query_image.shape[0]))
+    else:
+        # transform query into train
+        matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
+        matchesMask = mask.ravel().tolist()
 
-    # Warp query image to train image based on homography
-    im_out = cv2.warpPerspective(transform_image, matrix, (refer_image.shape[1], refer_image.shape[0]))
+        # Warp query image to train image based on homography
+        im_out = cv2.warpPerspective(query_image, matrix, (train_image.shape[1], train_image.shape[0]))
 
     if show_images:
         cv2.imshow("Transformed", im_out)
@@ -145,7 +174,10 @@ def homography_transformation(refer_image, refer_features, transform_image, tran
             os.mkdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH)
         cv2.imwrite(cst.TRANSFORMATION_RESULTS_FOLDER_PATH + '/' + save_as, im_out)
 
-    return matrix
+    if homography_check(train_image, im_out):
+        return matrix
+    else:
+        return None
 
 
 # Contrast Limited Adaptive Histogram Equalization
