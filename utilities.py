@@ -1,11 +1,16 @@
 # Import required modules
+# Utils misc functions
 import cv2
 import numpy as np
-import constants as cst
 
 
-# plot signal waves
 def plot_waves(sub_wave_matrix, wave_matrix, x_corr):
+    """
+    Plot signal waves
+    :param sub_wave_matrix:
+    :param wave_matrix:
+    :param x_corr:
+    """
     import matplotlib.pyplot as plt
 
     plt.plot(sub_wave_matrix)
@@ -22,8 +27,14 @@ def plot_waves(sub_wave_matrix, wave_matrix, x_corr):
     plt.show()
 
 
-# get audio cross correlation
 def find_audio_correlation(sub_wave_matrix, wave_matrix, plot=False):
+    """
+    Get audio cross correlation
+    :param sub_wave_matrix:
+    :param wave_matrix:
+    :param plot: if True plot the results
+    :return:
+    """
     from scipy import signal
 
     sub_wave_matrix = sub_wave_matrix.flatten()
@@ -38,8 +49,12 @@ def find_audio_correlation(sub_wave_matrix, wave_matrix, plot=False):
     return np.argmin(x_corr)
 
 
-# convert audio
 def stereo_to_mono_wave(path):
+    """
+    Convert audio
+    :param path:
+    :return:
+    """
     import soundfile as sf
 
     wave, fs = sf.read(path, dtype='float32')
@@ -47,11 +62,14 @@ def stereo_to_mono_wave(path):
     return fs, wave
 
 
-# undistort the image
-# image: cv2 image Object
-# matrix: intrinsics matrix
-# distortion: intrinsics distortion
 def undistort_image(image, matrix, distortion):
+    """
+    Un-distort the image
+    :param image: OpenCv image
+    :param matrix: intrinsics matrix
+    :param distortion: intrinsics distortion
+    :return:
+    """
     # Compute the undistorted image
     h, w = image.shape[:2]
     # Compute the newcamera intrinsic matrix
@@ -65,16 +83,24 @@ def undistort_image(image, matrix, distortion):
     return image_new
 
 
-# return total n° of frames of a video
 def get_video_total_frames(video_path):
+    """
+    Return total n° of frames of a video
+    :param video_path: path to the video
+    :return:
+    """
     video = cv2.VideoCapture(video_path)
     tot_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))  # total number of frames
     video.release()
     return tot_frames
 
 
-# convert svg to png
 def svg_to_png(image_path):
+    """
+    Convert svg to png
+    :param image_path: path to the image
+    :return:
+    """
     from svglib.svglib import svg2rlg
     from reportlab.graphics import renderPDF, renderPM
 
@@ -86,8 +112,14 @@ def svg_to_png(image_path):
     return image_path_new
 
 
-# enchantment of an image with morphological operations
-def image_enchantment(image, params, iterations=1):
+def enchant_morphological(image, params, iterations=1):
+    """
+    Enchantment of an image with morphological operations
+    :param image: OpenCv image
+    :param params: morphological operations to apply
+    :param iterations: iterations to apply
+    :return:
+    """
     kernel = np.ones((5, 5), np.uint8)
 
     for type in params:
@@ -117,65 +149,12 @@ def image_enchantment(image, params, iterations=1):
     return image
 
 
-def homography_check(train_image, homography_image):
-    detector_alg = cv2.ORB_create()
-    matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-
-    train_img_bw = cv2.cvtColor(train_image, cv2.COLOR_BGR2GRAY)
-    query_img_bw = cv2.cvtColor(homography_image, cv2.COLOR_BGR2GRAY)
-
-    queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
-    trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
-    matches = matcher.knnMatch(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors, k=2)
-    # Apply Lowe ratio test
-    good_matches = []
-    for m, n in matches:
-        if m.distance < 0.75 * n.distance:
-            good_matches.append(m)
-
-    if len(good_matches) < 10:
-        return False
-    return True
-
-
-# find homography matrix and do perspective transform, train => query
-def homography_transformation(query_image, query_features, train_image, train_features, matches,
-                              transform_train=True, show_images=True, save_as=None):
-    import os
-
-    kp_query_image, desc_query_image = query_features[0], query_features[1]
-    kp_train_image, desc_train_image = train_features[0], train_features[1]
-
-    query_pts = np.float32([kp_query_image[m.queryIdx]
-                           .pt for m in matches]).reshape(-1, 1, 2)
-    train_pts = np.float32([kp_train_image[m.trainIdx]
-                           .pt for m in matches]).reshape(-1, 1, 2)
-
-    if transform_train:
-        # Warp train image into query image based on homography
-        matrix, mask = cv2.findHomography(train_pts, query_pts, cv2.RANSAC, 5.0)
-        im_out = cv2.warpPerspective(train_image, matrix, (query_image.shape[1], query_image.shape[0]))
-    else:
-        # Warp train image into query image based on homography
-        matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
-        im_out = cv2.warpPerspective(query_image, matrix, (train_image.shape[1], train_image.shape[0]))
-
-    if show_images:
-        cv2.imshow("Transformed", im_out)
-        # cv2.waitKey(0)
-    if save_as is not None:
-        if not os.path.isdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH):
-            os.mkdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH)
-        cv2.imwrite(cst.TRANSFORMATION_RESULTS_FOLDER_PATH + '/' + save_as, im_out)
-
-    if homography_check(train_image, im_out):
-        return matrix
-    else:
-        return None
-
-
-# Contrast Limited Adaptive Histogram Equalization
-def CLAHE(image):
+def enchant_CLAHE(image):
+    """
+    Contrast Limited Adaptive Histogram Equalization
+    :param image: OpenCv image
+    :return:
+    """
     # -----Converting image to LAB Color model-----------------------------------
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
 
@@ -193,8 +172,13 @@ def CLAHE(image):
     return cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
 
 
-# Automatic brightness and contrast optimization with optional histogram clipping
 def enchant_brightness_and_contrast(image, clip_hist_percent=1):
+    """
+    Automatic brightness and contrast optimization with optional histogram clipping
+    :param image: OpenCv image
+    :param clip_hist_percent:
+    :return:
+    """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Calculate grayscale histogram
@@ -227,3 +211,46 @@ def enchant_brightness_and_contrast(image, clip_hist_percent=1):
     beta = -minimum_gray * alpha
 
     return cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+
+
+def cameraPoseFromHomography(H):
+    H1 = H[:, 0]
+    H2 = H[:, 1]
+    H3 = np.cross(H1, H2)
+
+    norm1 = np.linalg.norm(H1)
+    norm2 = np.linalg.norm(H2)
+    tnorm = (norm1 + norm2) / 2.0
+
+    T = H[:, 2] / tnorm
+    return np.mat([H1, H2, H3, T])
+
+
+def find_pose_from_homography(H, K):
+    """
+    function for pose prediction of the camera from the homography matrix, given the intrinsics
+
+    :param H(np.array): size(3x3) homography matrix
+    :param K(np.array): size(3x3) intrinsics of camera
+    :Return t: size (3 x 1) vector of the translation of the transformation
+    :Return R: size (3 x 3) matrix of the rotation of the transformation (orthogonal matrix)
+    """
+
+    # to disambiguate two rotation marices corresponding to the translation matrices (t and -t),
+    # multiply H by the sign of the z-comp on the t-matrix to enforce the contraint that z-compoment of point
+    # in-front must be positive and thus obtain a unique rotational matrix
+    H = H * np.sign(H[2, 2])
+
+    h1, h2, h3 = H[:, 0].reshape(-1, 1), H[:, 1].reshape(-1, 1), H[:, 2].reshape(-1, 1)
+
+    R_ = np.hstack((h1, h2, np.cross(h1, h2, axis=0))).reshape(3, 3)
+
+    U, S, V = np.linalg.svd(R_)
+
+    R = U @ np.array([[1, 0, 0],
+                      [0, 1, 0],
+                      [0, 0, np.linalg.det(U @ V.T)]]) @ V.T
+
+    t = (h3 / np.linalg.norm(h1)).reshape(-1, 1)
+
+    return R, t

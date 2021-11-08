@@ -18,13 +18,28 @@ class FeatureMatcher:
                  detector_algorithm=DETECTOR_ALGORITHM_ORB,
                  matching_algorithm=MATCHING_ALGORITHM_BRUTEFORCE,
                  algorithm_params=None):
+        """
+        Constructor
+        :param frames_static_folder_path: path to the static frames folder
+        :param frames_moving_folder_path: path to the moving frames folder
+        :param detector_algorithm: detector algorithm to use
+        :param matching_algorithm: matching algorithm to use
+        :param algorithm_params: algorithm params
+        """
         self.frames_static_folder_path = frames_static_folder_path
         self.frames_moving_folder_path = frames_moving_folder_path
         self.detector_algorithm = detector_algorithm
         self.matching_algorithm = matching_algorithm
-        self.algorithm_params = algorithm_params
+        if algorithm_params is not None:
+            self.algorithm_params = algorithm_params
+        else:
+            self.algorithm_params = dict(min_match=10, threshold=0.75)
 
-    def setOrbTreshold(self, matcher):
+    def setOrbThreshold(self, matcher):
+        """
+        Set default threshold for ORB
+        :param matcher:
+        """
         if matcher == self.MATCHING_ALGORITHM_KNN:
             self.algorithm_params = dict(min_match=40, threshold=0.85)
         elif matcher == self.MATCHING_ALGORITHM_FLANN:
@@ -32,14 +47,95 @@ class FeatureMatcher:
         else:
             self.algorithm_params = dict(min_match=10, threshold=0.75)
 
-    def setSiftTreshold(self, matcher):
+    def setSiftThreshold(self, matcher):
+        """
+        Set default threshold for SIFT
+        :param matcher:
+        """
         if matcher == self.MATCHING_ALGORITHM_FLANN:
             self.algorithm_params = dict(min_match=15, threshold=0.8)
         else:
             self.algorithm_params = dict(min_match=10, threshold=0.75)
 
-    # prepare matcher
+    @staticmethod
+    def homography_check(train_image, homography_image):
+        """
+        Check if the homography image match with the train one
+        :param train_image: OpenCv image
+        :param homography_image: OpenCv image
+        :return:
+        """
+        detector_alg = cv2.ORB_create()
+        matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+
+        train_img_bw = cv2.cvtColor(train_image, cv2.COLOR_BGR2GRAY)
+        query_img_bw = cv2.cvtColor(homography_image, cv2.COLOR_BGR2GRAY)
+
+        queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
+        trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
+        matches = matcher.knnMatch(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors, k=2)
+        # Apply Lowe ratio test
+        good_matches = []
+        for m, n in matches:
+            if m.distance < 0.75 * n.distance:
+                good_matches.append(m)
+
+        if len(good_matches) < 10:
+            return False
+        return True
+
+    @staticmethod
+    def homography_transformation(query_image, query_features, train_image, train_features, matches,
+                                  transform_train=True, show_images=True, save_as=None):
+        """
+        Find homography matrix and do perspective transform
+        :param query_image: OpenCv image
+        :param query_features: keypoints, descriptors of the query_image
+        :param train_image: OpenCv image
+        :param train_features: keypoints, descriptors of the train_image
+        :param matches: matches between train_image and query_image
+        :param transform_train: if True transform train into query image, otherwise transform query into train image
+        :param show_images: if True show results
+        :param save_as: save filename for results, if None don't save
+        :return:
+        """
+        import os
+
+        kp_query_image, desc_query_image = query_features[0], query_features[1]
+        kp_train_image, desc_train_image = train_features[0], train_features[1]
+
+        query_pts = np.float32([kp_query_image[m.queryIdx]
+                               .pt for m in matches]).reshape(-1, 1, 2)
+        train_pts = np.float32([kp_train_image[m.trainIdx]
+                               .pt for m in matches]).reshape(-1, 1, 2)
+
+        if transform_train:
+            # Warp train image into query image based on homography
+            matrix, mask = cv2.findHomography(train_pts, query_pts, cv2.RANSAC, 5.0)
+            im_out = cv2.warpPerspective(train_image, matrix, (query_image.shape[1], query_image.shape[0]))
+        else:
+            # Warp train image into query image based on homography
+            matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
+            im_out = cv2.warpPerspective(query_image, matrix, (train_image.shape[1], train_image.shape[0]))
+
+        if show_images:
+            cv2.imshow("Transformed", im_out)
+            # cv2.waitKey(0)
+        if save_as is not None:
+            if not os.path.isdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH):
+                os.mkdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH)
+            cv2.imwrite(cst.TRANSFORMATION_RESULTS_FOLDER_PATH + '/' + save_as, im_out)
+
+        if FeatureMatcher.homography_check(train_image, im_out):
+            return matrix
+        else:
+            return None
+
     def prepareMatcher(self):
+        """
+        Prepare matcher and detector algorithms
+        :return:
+        """
         # FLANN parameters
         FLANN_INDEX_KDTREE = 0
         FLANN_INDEX_LSH = 6
@@ -84,8 +180,14 @@ class FeatureMatcher:
 
         return detector_alg, matcher
 
-    # feature matching and homography transformations
     def extract_features(self, show_images=False, save_images=False, plot_histogram=False):
+        """
+        Feature matching and homography check
+        :param show_images: if True show results
+        :param save_images: if True save results
+        :param plot_histogram: if True plot light intensity
+        :return:
+        """
         if not os.path.isdir(self.frames_static_folder_path):
             raise Exception('Static folder not found!')
         if not os.path.isdir(self.frames_moving_folder_path):
@@ -130,8 +232,8 @@ class FeatureMatcher:
             query_img = ut.enchant_brightness_and_contrast(query_img)
             query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
-            train_img_bw = ut.image_enchantment(train_img_bw, [cv2.MORPH_OPEN], 5)
-            query_img_bw = ut.image_enchantment(query_img_bw, [cv2.MORPH_OPEN])
+            train_img_bw = ut.enchant_morphological(train_img_bw, [cv2.MORPH_OPEN], iterations=5)
+            query_img_bw = ut.enchant_morphological(query_img_bw, [cv2.MORPH_OPEN])
 
             # Now detect the keypoints and compute the descriptors for the query image and train image
             queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
@@ -167,18 +269,22 @@ class FeatureMatcher:
                 if save_images:
                     save_as = "frame_{}.png".format(i)
 
-                homography = ut.homography_transformation(query_image=query_img,
-                                                          query_features=(queryKeypoints, queryDescriptors),
-                                                          train_image=train_img,
-                                                          train_features=(trainKeypoints, trainDescriptors),
-                                                          matches=good_matches, show_images=show_images,
-                                                          save_as=save_as)
+                homography = FeatureMatcher.homography_transformation(query_image=query_img,
+                                                                      query_features=(queryKeypoints, queryDescriptors),
+                                                                      train_image=train_img,
+                                                                      train_features=(trainKeypoints, trainDescriptors),
+                                                                      matches=good_matches, show_images=show_images,
+                                                                      save_as=save_as)
                 if homography is not None:
                     n_accepted += 1
-                    dataset.append((queryKeypoints, queryDescriptors, homography))
+                    print(ut.cameraPoseFromHomography(homography))
+                    data = dict(train=(trainKeypoints, trainDescriptors),
+                                query=(queryKeypoints, queryDescriptors),
+                                homography=homography)
+                    dataset.append(data)
                 else:
                     n_discarded += 1
-                    print("Inaccurate homography")
+                    print("Discarded: Inaccurate homography")
 
                 # draw the matches to the final image containing both the images
                 final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches,
@@ -197,7 +303,9 @@ class FeatureMatcher:
                     cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
             else:
                 n_discarded += 1
-                print("Not enough matches are found - %d/%d" % (len(good_matches), MIN_MATCH))
+                print("Discarded: Not enough matches are found - %d/%d" % (len(good_matches), MIN_MATCH))
 
         print("\nN° of accepted frames: ", n_accepted)
         print("N° of discarded frames: ", n_discarded, "\n")
+
+        return dataset

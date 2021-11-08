@@ -11,10 +11,13 @@ from moviepy.editor import VideoFileClip
 from FeatureMatcher import FeatureMatcher
 
 
-# video_static: first VideoFileClip
-# video_moving: second VideoFileClip
-# return: video static offset, video moving offset
 def get_audio_offset(video_static, video_moving):
+    """
+    Return video static offset, video moving offset
+    :param video_static: first VideoFileClip
+    :param video_moving: second VideoFileClip
+    :return:
+    """
     video1 = video_static
     swapped = False
     video2 = video_moving
@@ -51,14 +54,17 @@ def get_audio_offset(video_static, video_moving):
         return 0, offset  # offset is on moving video
 
 
-# generate undistorted frames images from the video
-# video_path: path where to get the video
-# calibration_file_path: path to the intrinsics calibration file
-# tot_frames: total number of frames
-# n_frames: number of frames to generate
-# offset: starting offset for the video
-# dir_name: directory name where to save the frames
 def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frames=30, offset=0, dir_name='sample'):
+    """
+    Generate undistorted frames images from the video
+    :param video_path: path to the video
+    :param calibration_file_path: path to the intrinsics calibration file
+    :param tot_frames: total number of frames of the video
+    :param n_frames: number of frames to generate
+    :param offset: starting offset for the video
+    :param dir_name: directory name where to save the frames
+    :return:
+    """
     SAVE_PATH = cst.FRAMES_FOLDER_PATH + "/" + dir_name
 
     if not os.path.isfile(calibration_file_path):
@@ -86,6 +92,10 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
     # Opens the Video file
     video = cv2.VideoCapture(video_path)
 
+    # check frame overflow
+    if n_frames > tot_frames:
+        n_frames = tot_frames
+
     offset *= 30  # 30 fps * offset
     frame_n = offset  # starting from offset (for video sync)
     frame_skip = math.trunc((tot_frames - offset) / n_frames)  # skip threshold between frames to obtain n_frames
@@ -110,8 +120,13 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
     return SAVE_PATH
 
 
-# synchronize the videos and generate undistorted frames of synchronized videos
-def sync_videos(video_static_path, video_moving_path):
+def sync_videos(video_static_path, video_moving_path, n_frames=60):
+    """
+    Synchronize the videos and generate undistorted frames of synchronized videos
+    :param video_static_path: path to the static video
+    :param video_moving_path: path to the moving video
+    :param n_frames: n° of frames to extract
+    """
     if not os.path.isfile(video_static_path):
         raise Exception('Video static not found!')
     if not os.path.isfile(video_moving_path):
@@ -133,7 +148,7 @@ def sync_videos(video_static_path, video_moving_path):
     # generate frames for static video
     generate_video_frames(video_path=video_static_path,
                           calibration_file_path=cst.INTRINSICS_STATIC_PATH,
-                          n_frames=60,
+                          n_frames=n_frames,
                           tot_frames=tot_frames,
                           dir_name=video_static_dir,
                           offset=video_static_offset)
@@ -141,13 +156,17 @@ def sync_videos(video_static_path, video_moving_path):
     # generate frames for moving video
     generate_video_frames(video_path=video_moving_path,
                           calibration_file_path=cst.INTRINSICS_MOVING_PATH,
-                          n_frames=60,
+                          n_frames=tot_frames,
                           tot_frames=tot_frames,
                           dir_name=video_moving_dir,
                           offset=video_moving_offset)
 
 
 def compute(sync=False):
+    """
+    Main function
+    :param sync: if True sync the videos and extract the frames
+    """
     coin = 'coin1'
     video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(coin)
     video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(coin)
@@ -160,11 +179,9 @@ def compute(sync=False):
     fm = FeatureMatcher(frames_static_folder, frames_moving_folder,
                         detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_ORB,
                         matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
-    fm.setOrbTreshold(FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
-    # fm.setOrbTreshold(FeatureMatcher.MATCHING_ALGORITHM_KNN)
-    # fm.setOrbTreshold(FeatureMatcher.MATCHING_ALGORITHM_FLANN)
-    # fm.setSiftTreshold(FeatureMatcher.MATCHING_ALGORITHM_FLANN)
-    fm.extract_features(show_images=True, save_images=False, plot_histogram=False)
+    results = fm.extract_features(show_images=True, save_images=False, plot_histogram=False)
+    #for res in results:
+        #print(res['homography'], "\n")
 
 
 # Press the green button in the gutter to run the script.
