@@ -162,26 +162,32 @@ def sync_videos(video_static_path, video_moving_path, n_frames=60):
                           offset=video_moving_offset)
 
 
-def compute(sync=False):
+def compute(video_name='coin1', sync=False):
     """
     Main function
+    :param video_name: name of the video to take
     :param sync: if True sync the videos and extract the frames
     """
-    coin = 'coin1'
-    video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(coin)
-    video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(coin)
-    frames_static_folder = cst.FRAMES_FOLDER_PATH + '/static_{}'.format(coin)
-    frames_moving_folder = cst.FRAMES_FOLDER_PATH + '/moving_{}'.format(coin)
+    video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(video_name)
+    video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(video_name)
+    frames_static_folder = cst.FRAMES_FOLDER_PATH + '/static_{}'.format(video_name)
+    frames_moving_folder = cst.FRAMES_FOLDER_PATH + '/moving_{}'.format(video_name)
 
     if sync:
+        sync_videos(video_static_path, video_moving_path)
+    elif not os.path.isdir(frames_static_folder) or not os.path.isdir(frames_moving_folder):
+        # if frames folders aren't found do sync_videos
         sync_videos(video_static_path, video_moving_path)
 
     fm = FeatureMatcher(frames_static_folder, frames_moving_folder,
                         detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_ORB,
                         matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
-    results = fm.extract_features(show_images=True, save_images=False, plot_histogram=False)
-    #for res in results:
-        #print(res['homography'], "\n")
+
+    result = fm.extract_features(show_images=False, save_images=False, plot_histogram=False)
+    #Kfile = cv2.FileStorage(cst.RESULTS_PATH, cv2.FILE_STORAGE_WRITE)
+    #Kfile.write("results", result)
+    return result
+
 
 
 # Press the green button in the gutter to run the script.

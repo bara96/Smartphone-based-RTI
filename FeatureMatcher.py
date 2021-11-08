@@ -224,11 +224,13 @@ class FeatureMatcher:
         n_discarded = 0
         for i in range(0, tot_frames):
             # Read the train image
-            train_img = cv2.imread(self.frames_static_folder_path + "/frame_{}.png".format(i))
+            train_filename = self.frames_static_folder_path + "/frame_{}.png".format(i)
+            train_img = cv2.imread(train_filename)
             train_img_bw = cv2.cvtColor(train_img, cv2.COLOR_BGR2GRAY)
             # Read the query image
             # The query image is what we need to find in train image
-            query_img = cv2.imread(self.frames_moving_folder_path + "/frame_{}.png".format(i))
+            query_filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
+            query_img = cv2.imread(query_filename)
             query_img = ut.enchant_brightness_and_contrast(query_img)
             query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
@@ -277,9 +279,11 @@ class FeatureMatcher:
                                                                       save_as=save_as)
                 if homography is not None:
                     n_accepted += 1
-                    print(ut.cameraPoseFromHomography(homography))
-                    data = dict(train=(trainKeypoints, trainDescriptors),
-                                query=(queryKeypoints, queryDescriptors),
+                    #print(ut.cameraPoseFromHomography(homography))
+                    data = dict(trainImage=train_img,
+                                queryImage=query_img,
+                                trainFeatures=(trainKeypoints, trainDescriptors),
+                                queryFeatures=(queryKeypoints, queryDescriptors),
                                 homography=homography)
                     dataset.append(data)
                 else:
