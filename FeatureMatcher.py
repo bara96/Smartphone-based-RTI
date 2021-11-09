@@ -241,6 +241,7 @@ class FeatureMatcher:
             queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
             trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
 
+            # calculate brightness histogram
             if plot_histogram:
                 histr = cv2.calcHist([train_img], [0], None, [256], [0, 256])
                 plt.plot(histr)
@@ -265,7 +266,7 @@ class FeatureMatcher:
             good_matches = sorted(good_matches, key=lambda x: x.distance)
 
             if len(good_matches) >= MIN_MATCH:
-                print("Matches found - %d/%d" % (len(good_matches), MIN_MATCH))
+                # print("Matches found - %d/%d" % (len(good_matches), MIN_MATCH))
                 # try to transform the static into the moving
                 save_as = None
                 if save_images:

@@ -54,6 +54,41 @@ def get_audio_offset(video_static, video_moving):
         return 0, offset  # offset is on moving video
 
 
+def generate_video_default_frame(video_path, calibration_file_path, file_name='default'):
+    SAVE_PATH = cst.FRAMES_FOLDER_PATH + "/" + file_name + ".png"
+
+    if not os.path.isfile(calibration_file_path):
+        raise Exception('intrinsics file not found!')
+    else:
+        # Read intrinsics to file
+        Kfile = cv2.FileStorage(calibration_file_path, cv2.FILE_STORAGE_READ)
+        matrix = Kfile.getNode("K").mat()
+        distortion = Kfile.getNode("distortion").mat()
+
+    # Opens the Video file
+    video = cv2.VideoCapture(video_path)
+    default_frame = None
+    lower_brightness = 1
+    for i in range(0, 90):
+        ret, frame = video.read()
+        if ret == False:
+            raise Exception('Null frame')
+
+        frame_new = ut.undistort_image(frame, matrix, distortion)
+        mean_hv_ls = cv2.mean(cv2.cvtColor(frame_new, cv2.COLOR_BGR2HSV))
+        mean_brightness = mean_hv_ls[2]/255
+        # set as default image the one with brightness near 0.5
+        if lower_brightness > mean_brightness > 0.5:
+            default_frame = frame_new.copy()
+            lower_brightness = mean_brightness
+
+    video.release()
+    # cv2.imshow('Default', default_frame)
+    # cv2.waitKey(0)
+    cv2.imwrite(SAVE_PATH, default_frame)
+    cv2.destroyAllWindows()
+
+
 def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frames=30, offset=0, dir_name='sample'):
     """
     Generate undistorted frames images from the video
@@ -99,7 +134,7 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
     offset *= 30  # 30 fps * offset
     frame_n = offset  # starting from offset (for video sync)
     frame_skip = math.trunc((tot_frames - offset) / n_frames)  # skip threshold between frames to obtain n_frames
-    print('Generating frames.. \n')
+    print('Generating frames..')
     for i in range(0, n_frames):
         frame_n += frame_skip
         video.set(cv2.CAP_PROP_POS_FRAMES, frame_n)  # skip frames
@@ -141,9 +176,15 @@ def sync_videos(video_static_path, video_moving_path, n_frames=60):
     # extract filename from video path in order to create a directory for video frames
     video_static_dir = 'static_' + os.path.splitext(os.path.basename(video_static_path))[0]
     video_moving_dir = 'moving_' + os.path.splitext(os.path.basename(video_moving_path))[0]
+    video_default_frame = 'default_' + os.path.splitext(os.path.basename(video_static_path))[0]
 
     # total number of frames of shortest video
     tot_frames = min(ut.get_video_total_frames(video_static_path), ut.get_video_total_frames(video_moving_path))
+
+    # generate default frame from static video
+    generate_video_default_frame(video_path=video_static_path,
+                                 calibration_file_path=cst.INTRINSICS_STATIC_PATH,
+                                 file_name=video_default_frame)
 
     # generate frames for static video
     generate_video_frames(video_path=video_static_path,
@@ -156,7 +197,7 @@ def sync_videos(video_static_path, video_moving_path, n_frames=60):
     # generate frames for moving video
     generate_video_frames(video_path=video_moving_path,
                           calibration_file_path=cst.INTRINSICS_MOVING_PATH,
-                          n_frames=tot_frames,
+                          n_frames=n_frames,
                           tot_frames=tot_frames,
                           dir_name=video_moving_dir,
                           offset=video_moving_offset)
@@ -184,10 +225,9 @@ def compute(video_name='coin1', sync=False):
                         matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
 
     result = fm.extract_features(show_images=False, save_images=False, plot_histogram=False)
-    #Kfile = cv2.FileStorage(cst.RESULTS_PATH, cv2.FILE_STORAGE_WRITE)
-    #Kfile.write("results", result)
+    # Kfile = cv2.FileStorage(cst.RESULTS_PATH, cv2.FILE_STORAGE_WRITE)
+    # Kfile.write("results", result)
     return result
-
 
 
 # Press the green button in the gutter to run the script.
