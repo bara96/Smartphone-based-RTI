@@ -281,10 +281,8 @@ class FeatureMatcher:
                 if homography is not None:
                     n_accepted += 1
                     #print(ut.cameraPoseFromHomography(homography))
-                    data = dict(trainImage=train_img,
-                                queryImage=query_img,
-                                trainFeatures=(trainKeypoints, trainDescriptors),
-                                queryFeatures=(queryKeypoints, queryDescriptors),
+                    data = dict(trainImage=train_filename,
+                                queryImage=query_filename,
                                 homography=homography)
                     dataset.append(data)
                 else:

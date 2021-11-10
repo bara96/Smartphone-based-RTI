@@ -4,6 +4,7 @@ import shutil
 import os
 import cv2
 import math
+import json
 import numpy as np
 from matplotlib import pyplot as plt
 import utilities as ut
@@ -55,15 +56,15 @@ def get_audio_offset(video_static, video_moving):
 
 
 def generate_video_default_frame(video_path, calibration_file_path, file_name='default'):
+    """
+    Generate default video frame (with no light)
+    :param video_path: path to the video
+    :param calibration_file_path: path to the intrinsics calibration file
+    :param file_name: file name to save the frame
+    """
     SAVE_PATH = cst.FRAMES_FOLDER_PATH + "/" + file_name + ".png"
 
-    if not os.path.isfile(calibration_file_path):
-        raise Exception('intrinsics file not found!')
-    else:
-        # Read intrinsics to file
-        Kfile = cv2.FileStorage(calibration_file_path, cv2.FILE_STORAGE_READ)
-        matrix = Kfile.getNode("K").mat()
-        distortion = Kfile.getNode("distortion").mat()
+    matrix, distortion = ut.get_camera_intrinsics(calibration_file_path)
 
     # Opens the Video file
     video = cv2.VideoCapture(video_path)
@@ -102,13 +103,7 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
     """
     SAVE_PATH = cst.FRAMES_FOLDER_PATH + "/" + dir_name
 
-    if not os.path.isfile(calibration_file_path):
-        raise Exception('intrinsics file not found!')
-    else:
-        # Read intrinsics to file
-        Kfile = cv2.FileStorage(calibration_file_path, cv2.FILE_STORAGE_READ)
-        matrix = Kfile.getNode("K").mat()
-        distortion = Kfile.getNode("distortion").mat()
+    matrix, distortion = ut.get_camera_intrinsics(calibration_file_path)
 
     # create BASE_SAVE_PATH folder if not exists
     if not os.path.exists(cst.FRAMES_FOLDER_PATH):
@@ -224,10 +219,13 @@ def compute(video_name='coin1', sync=False):
                         detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_ORB,
                         matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
 
-    result = fm.extract_features(show_images=False, save_images=False, plot_histogram=False)
-    # Kfile = cv2.FileStorage(cst.RESULTS_PATH, cv2.FILE_STORAGE_WRITE)
-    # Kfile.write("results", result)
-    return result
+    results = fm.extract_features(show_images=False, save_images=False, plot_histogram=False)
+
+    # write results on file
+    file_path = "assets/results_{}.pickle".format(video_name)
+    ut.write_on_file(results, file_path)
+
+    return results
 
 
 # Press the green button in the gutter to run the script.

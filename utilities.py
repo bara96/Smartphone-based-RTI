@@ -63,6 +63,22 @@ def stereo_to_mono_wave(path):
     return fs, wave
 
 
+def get_camera_intrinsics(calibration_file_path):
+    """
+    Get camera intrinsic matrix and distorsion
+    :param calibration_file_path: file path to intrinsics file
+    """
+    if not os.path.isfile(calibration_file_path):
+        raise Exception('intrinsics file not found!')
+    else:
+        # Read intrinsics to file
+        Kfile = cv2.FileStorage(calibration_file_path, cv2.FILE_STORAGE_READ)
+        matrix = Kfile.getNode("K").mat()
+        distortion = Kfile.getNode("distortion").mat()
+
+    return matrix, distortion
+
+
 def undistort_image(image, matrix, distortion):
     """
     Un-distort the image
@@ -214,7 +230,20 @@ def enchant_brightness_and_contrast(image, clip_hist_percent=1):
     return cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
 
 
-def cameraPoseFromHomography(H):
+def write_on_file(data, filename):
+    import pickle
+    with open(filename, "wb") as f:
+        pickle.dump(data, f)
+
+
+def read_from_file(filename):
+    import pickle
+    with open(filename, 'rb') as f:
+        results = pickle.load(f)
+    return results
+
+
+def camera_pose_from_homography(H):
     H1 = H[:, 0]
     H2 = H[:, 1]
     H3 = np.cross(H1, H2)
@@ -229,29 +258,23 @@ def cameraPoseFromHomography(H):
 
 def find_pose_from_homography(H, K):
     """
-    function for pose prediction of the camera from the homography matrix, given the intrinsics
-
-    :param H(np.array): size(3x3) homography matrix
-    :param K(np.array): size(3x3) intrinsics of camera
-    :Return t: size (3 x 1) vector of the translation of the transformation
-    :Return R: size (3 x 3) matrix of the rotation of the transformation (orthogonal matrix)
+    H is the homography matrix
+    K is the camera calibration matrix
+    T is translation
+    R is rotation
     """
 
-    # to disambiguate two rotation marices corresponding to the translation matrices (t and -t),
-    # multiply H by the sign of the z-comp on the t-matrix to enforce the contraint that z-compoment of point
-    # in-front must be positive and thus obtain a unique rotational matrix
-    H = H * np.sign(H[2, 2])
+    H = H.T
+    h1 = H[0]
+    h2 = H[1]
+    h3 = H[2]
+    K_inv = np.linalg.inv(K)
+    L = 1 / np.linalg.norm(np.dot(K_inv, h1))
+    r1 = L * np.dot(K_inv, h1)
+    r2 = L * np.dot(K_inv, h2)
+    r3 = np.cross(r1, r2)
+    T = L * (K_inv @ h3.reshape(3, 1))
+    R = np.array([[r1], [r2], [r3]])
+    R = np.reshape(R, (3, 3))
 
-    h1, h2, h3 = H[:, 0].reshape(-1, 1), H[:, 1].reshape(-1, 1), H[:, 2].reshape(-1, 1)
-
-    R_ = np.hstack((h1, h2, np.cross(h1, h2, axis=0))).reshape(3, 3)
-
-    U, S, V = np.linalg.svd(R_)
-
-    R = U @ np.array([[1, 0, 0],
-                      [0, 1, 0],
-                      [0, 0, np.linalg.det(U @ V.T)]]) @ V.T
-
-    t = (h3 / np.linalg.norm(h1)).reshape(-1, 1)
-
-    return R, t
+    return R, T
