@@ -267,6 +267,7 @@ class FeatureMatcher:
 
             if len(good_matches) >= MIN_MATCH:
                 # print("Matches found - %d/%d" % (len(good_matches), MIN_MATCH))
+
                 # try to transform the static into the moving
                 save_as = None
                 if save_images:
@@ -280,7 +281,14 @@ class FeatureMatcher:
                                                                       save_as=save_as)
                 if homography is not None:
                     n_accepted += 1
-                    #print(ut.cameraPoseFromHomography(homography))
+                    K, d = ut.get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
+                    #retval, rotations, translations, normals = cv2.decomposeHomographyMat(homography, K)
+                    #R, T = rotations[0], translations[0]
+                    R, T = ut.find_pose_from_homography(homography, K)
+                    train_img_new = train_img.copy()
+                    train_img_new = ut.draw_axis(train_img_new, R, T, K)
+                    train_img_new = cv2.resize(train_img_new, (600, 800))
+                    cv2.imshow("Camera Position", train_img_new)
                     data = dict(trainImage=train_filename,
                                 queryImage=query_filename,
                                 homography=homography)
@@ -288,25 +296,26 @@ class FeatureMatcher:
                 else:
                     n_discarded += 1
                     print("Discarded: Inaccurate homography")
-
-                # draw the matches to the final image containing both the images
-                final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches,
-                                            None)
-                final_img = cv2.resize(final_img, (1000, 650))
-
-                # Show the final image
-                if show_images:
-                    cv2.imshow("Matches", final_img)
-                    cv2.waitKey(0)
-                    plt.close()
-                # Save the final image
-                if save_images:
-                    if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
-                        os.mkdir(cst.MATCHING_RESULTS_FOLDER_PATH)
-                    cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
             else:
                 n_discarded += 1
                 print("Discarded: Not enough matches are found - %d/%d" % (len(good_matches), MIN_MATCH))
+
+            # draw the matches to the final image containing both the images
+            final_img = None
+            if show_images or save_images:
+                final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches, None)
+
+            # Show the final image
+            if show_images:
+                final_img = cv2.resize(final_img, (1000, 650))
+                cv2.imshow("Matches", final_img)
+                cv2.waitKey(0)
+                plt.close()
+            # Save the final image
+            if save_images:
+                if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
+                    os.mkdir(cst.MATCHING_RESULTS_FOLDER_PATH)
+                cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
 
         print("\nN° of accepted frames: ", n_accepted)
         print("N° of discarded frames: ", n_discarded, "\n")

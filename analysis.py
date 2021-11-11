@@ -219,7 +219,7 @@ def compute(video_name='coin1', sync=False):
                         detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_ORB,
                         matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
 
-    results = fm.extract_features(show_images=False, save_images=False, plot_histogram=False)
+    results = fm.extract_features(show_images=True, save_images=False, plot_histogram=False)
 
     # write results on file
     file_path = "assets/results_{}.pickle".format(video_name)

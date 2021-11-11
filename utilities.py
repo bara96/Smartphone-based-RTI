@@ -243,19 +243,6 @@ def read_from_file(filename):
     return results
 
 
-def camera_pose_from_homography(H):
-    H1 = H[:, 0]
-    H2 = H[:, 1]
-    H3 = np.cross(H1, H2)
-
-    norm1 = np.linalg.norm(H1)
-    norm2 = np.linalg.norm(H2)
-    tnorm = (norm1 + norm2) / 2.0
-
-    T = H[:, 2] / tnorm
-    return np.mat([H1, H2, H3, T])
-
-
 def find_pose_from_homography(H, K):
     """
     H is the homography matrix
@@ -278,3 +265,28 @@ def find_pose_from_homography(H, K):
     R = np.reshape(R, (3, 3))
 
     return R, T
+
+
+def draw_axis(img, R, t, K):
+    # unit is mm
+    rotV, _ = cv2.Rodrigues(R)
+    points = np.float32([[100, 0, 0], [0, 100, 0], [0, 0, 100], [0, 0, 0]]).reshape(-1, 3)
+    axisPoints, _ = cv2.projectPoints(points, rotV, t, K, (0, 0, 0, 0))
+    pt1 = tuple(axisPoints[3].ravel())
+    pt1 = (int(pt1[0]), int(pt1[1]))
+    pt2 = tuple(axisPoints[0].ravel())
+    pt2 = (int(pt2[0]), int(pt2[1]))
+    img = cv2.line(img, pt1, pt2, (255,0,0), 3)
+
+    pt1 = tuple(axisPoints[3].ravel())
+    pt1 = (int(pt1[0]), int(pt1[1]))
+    pt2 = tuple(axisPoints[1].ravel())
+    pt2 = (int(pt2[0]), int(pt2[1]))
+    img = cv2.line(img, pt1, pt2, (0,255,0), 3)
+
+    pt1 = tuple(axisPoints[3].ravel())
+    pt1 = (int(pt1[0]), int(pt1[1]))
+    pt2 = tuple(axisPoints[2].ravel())
+    pt2 = (int(pt2[0]), int(pt2[1]))
+    img = cv2.line(img, pt1, pt2, (0,0,255), 3)
+    return img
