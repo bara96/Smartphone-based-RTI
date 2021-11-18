@@ -180,18 +180,38 @@ class FeatureMatcher:
 
         return detector_alg, matcher
 
-    def extract_features(self, show_images=False, save_images=False, plot_histogram=False):
+    def extract_features(self, show_params=None, save_images=False):
         """
         Feature matching and homography check
-        :param show_images: if True show results
+        :param show_params: if True show all results
         :param save_images: if True save results
         :param plot_histogram: if True plot light intensity
         :return:
         """
+
         if not os.path.isdir(self.frames_static_folder_path):
             raise Exception('Static folder not found!')
         if not os.path.isdir(self.frames_moving_folder_path):
             raise Exception('Moving folder not found!')
+
+        show_homography = False
+        show_camera_position = False
+        show_matches = False
+        show_histogram = False
+        if show_params is True:
+            show_homography = True
+            show_camera_position = True
+            show_matches = True
+            show_histogram = True
+        elif show_params is not None:
+            if show_params['homography'] is not None:
+                show_homography = show_params['homography']
+            if show_params['camera_position'] is not None:
+                show_camera_position = show_params['camera_position']
+            if show_params['matches'] is not None:
+                show_matches = show_params['matches']
+            if show_params['histogram'] is not None:
+                show_histogram = show_params['histogram']
 
         # read frames from folders
         list_static = os.listdir(self.frames_static_folder_path)
@@ -242,7 +262,7 @@ class FeatureMatcher:
             trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
 
             # calculate brightness histogram
-            if plot_histogram:
+            if show_histogram:
                 histr = cv2.calcHist([train_img], [0], None, [256], [0, 256])
                 plt.plot(histr)
                 plt.show(block=False)
@@ -277,18 +297,36 @@ class FeatureMatcher:
                                                                       query_features=(queryKeypoints, queryDescriptors),
                                                                       train_image=train_img,
                                                                       train_features=(trainKeypoints, trainDescriptors),
-                                                                      matches=good_matches, show_images=show_images,
+                                                                      matches=good_matches, show_images=show_homography,
                                                                       save_as=save_as)
                 if homography is not None:
                     n_accepted += 1
                     K, d = ut.get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
-                    #retval, rotations, translations, normals = cv2.decomposeHomographyMat(homography, K)
-                    #R, T = rotations[0], translations[0]
+
+                    # pose from homography
                     R, T = ut.find_pose_from_homography(homography, K)
+                    vector = -(R.transpose() * T)
+                    x, y = vector[0][0], vector[0][1]
+                    x1, y1 = vector[1][0], vector[1][1]
+                    x2, y2 = vector[2][0], vector[2][1]
+
+                    # x,y,z = np.dot(-np.transpose(R),T)
+
                     train_img_new = train_img.copy()
-                    train_img_new = ut.draw_axis(train_img_new, R, T, K)
-                    train_img_new = cv2.resize(train_img_new, (600, 800))
-                    cv2.imshow("Camera Position", train_img_new)
+                    x_scale, y_scale = 0.4, 0.4
+
+                    train_img_new, x, y = ut.image_draw_point(train_img_new, x, y, (0, 0, 255))
+                    train_img_new, x1, y1 = ut.image_draw_point(train_img_new, x1, y1, (0, 255, 255))
+                    train_img_new, x2, y2 = ut.image_draw_point(train_img_new, x2, y2, (255, 0, 255))
+                    train_img_new = cv2.resize(train_img_new, None, fx=x_scale, fy=y_scale)
+
+                    # print("x: ", x, "y: ", y)
+                    print("x: ", round(x * x_scale), "y: ", round(y * y_scale)) # scaled values
+                    print("x1: ", round(x1 * x_scale), "y1: ", round(y1 * y_scale))  # scaled values
+                    print("x2: ", round(x2 * x_scale), "y2: ", round(y2 * y_scale))  # scaled values
+
+                    if show_camera_position:
+                        cv2.imshow("Camera Position", train_img_new)
                     data = dict(trainImage=train_filename,
                                 queryImage=query_filename,
                                 homography=homography)
@@ -302,20 +340,23 @@ class FeatureMatcher:
 
             # draw the matches to the final image containing both the images
             final_img = None
-            if show_images or save_images:
-                final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches, None)
+            if show_matches or save_images:
+                final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches,
+                                            None)
 
             # Show the final image
-            if show_images:
-                final_img = cv2.resize(final_img, (1000, 650))
+            if show_matches:
+                final_img = cv2.resize(final_img, None, fx=0.5, fy=0.5)
                 cv2.imshow("Matches", final_img)
-                cv2.waitKey(0)
-                plt.close()
             # Save the final image
             if save_images:
                 if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
                     os.mkdir(cst.MATCHING_RESULTS_FOLDER_PATH)
                 cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
+
+            if show_params is not None:
+                cv2.waitKey(0)
+                plt.close()
 
         print("\nN° of accepted frames: ", n_accepted)
         print("N° of discarded frames: ", n_discarded, "\n")

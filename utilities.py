@@ -231,16 +231,54 @@ def enchant_brightness_and_contrast(image, clip_hist_percent=1):
 
 
 def write_on_file(data, filename):
+    """
+    Write data on pickle file
+    :param data:
+    :param filename:
+    """
     import pickle
     with open(filename, "wb") as f:
         pickle.dump(data, f)
 
 
 def read_from_file(filename):
+    """
+    Read data from pickle file
+    :param filename:
+    :return:
+    """
     import pickle
     with open(filename, 'rb') as f:
         results = pickle.load(f)
     return results
+
+
+def image_fill(img, enlarge_percentage=1.5):
+    # Getting the bigger side of the image
+    s = max(img.shape[0:2])
+    s = round(s * enlarge_percentage)
+
+    # Creating a dark square with NUMPY
+    img_new = np.zeros((s, s, 3), np.uint8)
+
+    # Getting the centering position
+    ax, ay = (s - img.shape[1]) // 2, (s - img.shape[0]) // 2
+
+    # Pasting the 'image' in a centering position
+    img_new[ay:img.shape[0] + ay, ax:ax + img.shape[1]] = img
+
+    return img_new
+
+
+def image_draw_point(img, x, y, color=(0, 0, 255)):
+    max_y, max_x, _ = img.shape
+    x, y = abs(int(x)), abs(int(y))
+    if x > max_x:
+        x = max_x - 1
+    if y > max_y:
+        y = max_y - 1
+
+    return cv2.circle(img, (x, y), radius=0, color=color, thickness=30), x, y
 
 
 def find_pose_from_homography(H, K):
@@ -267,26 +305,40 @@ def find_pose_from_homography(H, K):
     return R, T
 
 
-def draw_axis(img, R, t, K):
-    # unit is mm
-    rotV, _ = cv2.Rodrigues(R)
-    points = np.float32([[100, 0, 0], [0, 100, 0], [0, 0, 100], [0, 0, 0]]).reshape(-1, 3)
-    axisPoints, _ = cv2.projectPoints(points, rotV, t, K, (0, 0, 0, 0))
-    pt1 = tuple(axisPoints[3].ravel())
-    pt1 = (int(pt1[0]), int(pt1[1]))
-    pt2 = tuple(axisPoints[0].ravel())
-    pt2 = (int(pt2[0]), int(pt2[1]))
-    img = cv2.line(img, pt1, pt2, (255,0,0), 3)
+def extract_pixel_intensity(img):
+    imgWidth, imgHeight = img.size
+    img = img.convert("RGBA")
+    imgdata = img.getdata()
 
-    pt1 = tuple(axisPoints[3].ravel())
-    pt1 = (int(pt1[0]), int(pt1[1]))
-    pt2 = tuple(axisPoints[1].ravel())
-    pt2 = (int(pt2[0]), int(pt2[1]))
-    img = cv2.line(img, pt1, pt2, (0,255,0), 3)
+    x_pos = 0
+    y_pos = 1
+    pixel_value = []
+    x = []
+    y = []
+    for item in imgdata:
+        if (x_pos) == imgWidth:
+            x_pos = 1
+            y_pos += 1
+        else:
+            x_pos += 1
 
-    pt1 = tuple(axisPoints[3].ravel())
-    pt1 = (int(pt1[0]), int(pt1[1]))
-    pt2 = tuple(axisPoints[2].ravel())
-    pt2 = (int(pt2[0]), int(pt2[1]))
-    img = cv2.line(img, pt1, pt2, (0,0,255), 3)
-    return img
+        if item[3] != 0:
+            pixel_value.append(item[2])
+            x.append(x_pos)
+            y.append(y_pos)
+
+    pixel_value, x, y = zip(*sorted(zip(pixel_value, x, y), reverse=True))
+    return pixel_value, x, y
+
+
+def interpolate_RBF(img):
+    from PIL import Image
+    from scipy.interpolate import Rbf
+
+    img_data = np.asarray(img)
+
+    # img = Rbf(img_data[:, 0], img_data[:, 1], img_data[:, 2])
+    # val_ar = rbfi(img_data[:, 0], img_data[:, 1], img_data[:, 2])
+
+    img_pil = Image.fromarray(np.uint8(img_data)).convert('RGB')
+    img_pil.show()
