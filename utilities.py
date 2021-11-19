@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 
 
 def plot_waves(sub_wave_matrix, wave_matrix, x_corr):
@@ -12,7 +13,6 @@ def plot_waves(sub_wave_matrix, wave_matrix, x_corr):
     :param wave_matrix:
     :param x_corr:
     """
-    import matplotlib.pyplot as plt
 
     plt.plot(sub_wave_matrix)
     plt.title("Sub-Wave Signal")
@@ -281,7 +281,7 @@ def image_draw_point(img, x, y, color=(0, 0, 255)):
     return cv2.circle(img, (x, y), radius=0, color=color, thickness=30), x, y
 
 
-def find_pose_from_homography(H, K):
+def find_pose_from_homography(H, K, img, show_position=True):
     """
     H is the homography matrix
     K is the camera calibration matrix
@@ -301,6 +301,31 @@ def find_pose_from_homography(H, K):
     T = L * (K_inv @ h3.reshape(3, 1))
     R = np.array([[r1], [r2], [r3]])
     R = np.reshape(R, (3, 3))
+
+    # debug code
+    vector = -(R.transpose() * T)
+
+    x, y = vector[0][0], vector[0][1]       # red
+    x1, y1 = vector[1][0], vector[1][1]     # yellow
+    x2, y2 = vector[2][0], vector[2][1]     # purple
+
+    # x,y,z = np.dot(-np.transpose(R),T)
+
+    train_img_new = img.copy()
+    x_scale, y_scale = 0.4, 0.4
+
+    train_img_new, x, y = image_draw_point(train_img_new, x, y, (0, 0, 255))
+    train_img_new, x1, y1 = image_draw_point(train_img_new, x1, y1, (0, 255, 255))
+    train_img_new, x2, y2 = image_draw_point(train_img_new, x2, y2, (255, 0, 255))
+    train_img_new = cv2.resize(train_img_new, None, fx=x_scale, fy=y_scale)
+
+    # print("x: ", x, "y: ", y)
+    print("x: ", round(x * x_scale), "y: ", round(y * y_scale))  # scaled values
+    print("x1: ", round(x1 * x_scale), "y1: ", round(y1 * y_scale))  # scaled values
+    print("x2: ", round(x2 * x_scale), "y2: ", round(y2 * y_scale))  # scaled values
+
+    if show_position:
+        cv2.imshow("Camera Position", train_img_new)
 
     return R, T
 

@@ -220,7 +220,7 @@ def compute(video_name='coin1', sync=False):
                         matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
 
     show_images = dict(homography=False, camera_position=True, matches=True, histogram=False)
-    results = fm.extract_features(show_params=show_images, save_images=False)
+    results = fm.extract_features_test(show_params=show_images, save_images=False)
 
     # write results on file
     file_path = "assets/results_{}.pickle".format(video_name)
