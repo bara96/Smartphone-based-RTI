@@ -112,14 +112,18 @@ class FeatureMatcher:
         if transform_train:
             # Warp train image into query image based on homography
             matrix, mask = cv2.findHomography(train_pts, query_pts, cv2.RANSAC, 5.0)
+            if matrix is None:
+                return None
             im_out = cv2.warpPerspective(train_image, matrix, (query_image.shape[1], query_image.shape[0]))
         else:
             # Warp train image into query image based on homography
             matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
+            if matrix is None:
+                return None
             im_out = cv2.warpPerspective(query_image, matrix, (train_image.shape[1], train_image.shape[0]))
 
         if show_images:
-            cv2.imshow("Transformed", im_out)
+            cv2.imshow("Transformed", cv2.resize(im_out, None, fx=0.4, fy=0.4))
             # cv2.waitKey(0)
         if save_as is not None:
             if not os.path.isdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH):
@@ -185,7 +189,6 @@ class FeatureMatcher:
         Feature matching and homography check
         :param show_params: if True show all results
         :param save_images: if True save results
-        :param plot_histogram: if True plot light intensity
         :return:
         """
 
@@ -286,8 +289,6 @@ class FeatureMatcher:
             good_matches = sorted(good_matches, key=lambda x: x.distance)
 
             if len(good_matches) >= MIN_MATCH:
-                # print("Matches found - %d/%d" % (len(good_matches), MIN_MATCH))
-
                 # try to transform the static into the moving
                 save_as = None
                 if save_images:
@@ -300,11 +301,12 @@ class FeatureMatcher:
                                                                       matches=good_matches, show_images=show_homography,
                                                                       save_as=save_as)
                 if homography is not None:
+                    print("Accepted: matches found - %d/%d" % (len(good_matches), MIN_MATCH))
                     n_accepted += 1
                     K, d = ut.get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
 
                     # pose from homography
-                    R, T = ut.find_pose_from_homography(homography, K, train_img, show_position=False)
+                    R, T = ut.find_pose_from_homography(homography, K, train_img, show_position=show_camera_position)
 
                     data = dict(trainImage=train_filename,
                                 queryImage=query_filename,
@@ -325,8 +327,7 @@ class FeatureMatcher:
 
             # Show the final image
             if show_matches:
-                final_img = cv2.resize(final_img, None, fx=0.5, fy=0.5)
-                cv2.imshow("Matches", final_img)
+                cv2.imshow("Matches", cv2.resize(final_img, None, fx=0.4, fy=0.4))
             # Save the final image
             if save_images:
                 if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
@@ -337,17 +338,21 @@ class FeatureMatcher:
                 cv2.waitKey(0)
                 plt.close()
 
-        print("\nN° of accepted frames: ", n_accepted)
-        print("N° of discarded frames: ", n_discarded, "\n")
+        print("\n")
+        print("N° of accepted frames: ", n_accepted)
+        print("N° of discarded frames: ", n_discarded)
+        print("Error: ", n_discarded/tot_frames*100)
+        print("\n")
 
         return dataset
 
     def extract_features_test(self, show_params=None, save_images=False):
+        from skimage.measure import ransac
+        from skimage.transform import AffineTransform
         """
         Feature matching and homography check
         :param show_params: if True show all results
         :param save_images: if True save results
-        :param plot_histogram: if True plot light intensity
         :return:
         """
 
@@ -409,6 +414,7 @@ class FeatureMatcher:
             train_filename = self.frames_static_folder_path + "/frame_{}.png".format(i)
             train_img = cv2.imread(train_filename)
             train_img_bw = cv2.cvtColor(train_img, cv2.COLOR_BGR2GRAY)
+
             # Read the query image
             # The query image is what we need to find in train image
             query_filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
@@ -416,8 +422,11 @@ class FeatureMatcher:
             query_img = ut.enchant_brightness_and_contrast(query_img)
             query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
-            train_img_bw = ut.enchant_morphological(train_img_bw, [cv2.MORPH_OPEN], iterations=5)
-            query_img_bw = ut.enchant_morphological(query_img_bw, [cv2.MORPH_OPEN])
+            # train_img_bw = ut.enchant_morphological(train_img_bw, [cv2.MORPH_OPEN])
+            # query_img_bw = ut.enchant_morphological(query_img_bw, [cv2.MORPH_OPEN])
+            for k in range(0, 10):
+                train_img_bw = cv2.GaussianBlur(train_img_bw, (5, 5), 0)
+                query_img_bw = cv2.GaussianBlur(query_img_bw, (5, 5), 0)
 
             # Now detect the keypoints and compute the descriptors for the query image and train image
             queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
@@ -445,11 +454,9 @@ class FeatureMatcher:
                     if m.distance < THRESHOLD * n.distance:
                         good_matches.append(m)
 
-            good_matches = sorted(good_matches, key=lambda x: x.distance)
+            good_matches = sorted(good_matches, key=lambda x: x.distance)[:12]
 
             if len(good_matches) >= MIN_MATCH:
-                # print("Matches found - %d/%d" % (len(good_matches), MIN_MATCH))
-
                 # try to transform the static into the moving
                 save_as = None
                 if save_images:
@@ -462,24 +469,35 @@ class FeatureMatcher:
                                                                       matches=good_matches, show_images=show_homography,
                                                                       save_as=save_as)
                 if homography is not None:
+                    print("Accepted: matches found - %d/%d" % (len(good_matches), MIN_MATCH))
                     n_accepted += 1
+
                     K, d = ut.get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
 
-                    # pose from homography
-                    # R, T = ut.find_pose_from_homography(homography, K, train_img, show_position=False)
+                    img_pos1 = ut.find_pose_from_pnp(trainKeypoints, queryKeypoints, good_matches, K, d,
+                                          train_img, show_camera_position)
 
-                    query_pts = np.float32([queryKeypoints[m.queryIdx].pt for m in matches])
-                    train_pts = np.float32([np.append(trainKeypoints[m.trainIdx].pt, 0.) for m in matches])
+                    train_pts = np.float32([trainKeypoints[m.trainIdx].pt for m in good_matches]).reshape(-1, 2)
+                    query_pts = np.float32([queryKeypoints[m.queryIdx].pt for m in good_matches]).reshape(-1, 2)
+                    # Ransac
+                    model, inliers = ransac(
+                        (train_pts, query_pts),
+                        AffineTransform, min_samples=4,
+                        residual_threshold=8, max_trials=5000
+                    )
 
-                    ret, rvecs, tvecs = cv2.solvePnP(train_pts, query_pts, K, d)
-                    rotM  = cv2.Rodrigues(rvecs)[0]
-                    cameraPosition = -np.matrix(rotM).T * np.matrix(tvecs)
+                    n_inliers = np.sum(inliers)
 
-                    print(cameraPosition)
-                    train_img_new = train_img.copy()
-                    train_img_new, x, y = ut.image_draw_point(train_img_new, cameraPosition[0], cameraPosition[1], (0, 0, 255))
-                    train_img_new = cv2.resize(train_img_new, None, fx=0.4, fy=0.4)
-                    cv2.imshow("Camera Position", train_img_new)
+                    inlier_keypoints_train = [cv2.KeyPoint(point[0], point[1], 1) for point in train_pts[inliers]]
+                    inlier_keypoints_query = [cv2.KeyPoint(point[0], point[1], 1) for point in query_pts[inliers]]
+                    placeholder_matches = [cv2.DMatch(idx, idx, 1) for idx in range(n_inliers)]
+                    image3 = cv2.drawMatches(query_img, inlier_keypoints_query, train_img, inlier_keypoints_train, placeholder_matches, None)
+
+                    cv2.imshow('Matches2', cv2.resize(image3, None, fx=0.4, fy=0.4))
+                    img_pos2 = ut.find_pose_from_pnp(inlier_keypoints_train, inlier_keypoints_query, placeholder_matches, K, d , train_img, show_camera_position)
+
+                    cv2.imshow("Camera Position1", cv2.resize(img_pos1, None, fx=0.4, fy=0.4))
+                    cv2.imshow("Camera Position2", cv2.resize(img_pos2, None, fx=0.4, fy=0.4))
 
                     data = dict(trainImage=train_filename,
                                 queryImage=query_filename,
@@ -500,8 +518,7 @@ class FeatureMatcher:
 
             # Show the final image
             if show_matches:
-                final_img = cv2.resize(final_img, None, fx=0.5, fy=0.5)
-                cv2.imshow("Matches", final_img)
+                cv2.imshow("Matches", cv2.resize(final_img, None, fx=0.4, fy=0.4))
             # Save the final image
             if save_images:
                 if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
@@ -512,7 +529,10 @@ class FeatureMatcher:
                 cv2.waitKey(0)
                 plt.close()
 
-        print("\nN° of accepted frames: ", n_accepted)
-        print("N° of discarded frames: ", n_discarded, "\n")
+        print("\n")
+        print("N° of accepted frames: ", n_accepted)
+        print("N° of discarded frames: ", n_discarded)
+        print("Error: ", n_discarded / tot_frames * 100)
+        print("\n")
 
         return dataset

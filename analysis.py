@@ -217,9 +217,11 @@ def compute(video_name='coin1', sync=False):
 
     fm = FeatureMatcher(frames_static_folder, frames_moving_folder,
                         detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_ORB,
-                        matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
+                        matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_KNN)
 
-    show_images = dict(homography=False, camera_position=True, matches=True, histogram=False)
+    # fm.setOrbThreshold(fm.MATCHING_ALGORITHM_FLANN)
+    fm.algorithm_params = dict(min_match=10, threshold=0.75)
+    show_images = dict(homography=True, camera_position=False, matches=True, histogram=False)
     results = fm.extract_features_test(show_params=show_images, save_images=False)
 
     # write results on file

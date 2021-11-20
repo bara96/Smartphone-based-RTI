@@ -43,4 +43,5 @@ Here the commands to import required libraries with [conda](https://conda.io/)
 <code>conda install -c conda-forge moviepy</code>  
 <code>conda install -c conda-forge svglib</code>  
 <code>conda install -c anaconda reportlab</code>  
+<code>conda install scikit-image</code>  
 

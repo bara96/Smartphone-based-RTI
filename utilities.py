@@ -330,6 +330,23 @@ def find_pose_from_homography(H, K, img, show_position=True):
     return R, T
 
 
+def find_pose_from_pnp(trainKeypoints, queryKeypoints, matches, K, d, img, show_position=True):
+    train_pts = np.float32([np.append(trainKeypoints[m.trainIdx].pt, 1.) for m in matches])
+    query_pts = np.float32([queryKeypoints[m.queryIdx].pt for m in matches])
+
+    ret, rvecs, tvecs = cv2.solvePnP(train_pts, query_pts, K, d)
+    rotM = cv2.Rodrigues(rvecs)[0]
+    cameraPosition = -np.matrix(rotM).T * np.matrix(tvecs)
+    # cameraPosition = -(rotM.transpose() * tvecs)
+
+    train_img_new = img.copy()
+    train_img_new, x, y = image_draw_point(train_img_new, cameraPosition[0][0], cameraPosition[1][0], (0, 0, 255))
+    if show_position:
+        cv2.imshow("Camera Position", cv2.resize(train_img_new, None, fx=0.4, fy=0.4))
+
+    return train_img_new
+
+
 def extract_pixel_intensity(img):
     imgWidth, imgHeight = img.size
     img = img.convert("RGBA")
