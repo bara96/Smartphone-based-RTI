@@ -254,6 +254,12 @@ def read_from_file(filename):
 
 
 def image_fill(img, enlarge_percentage=1.5):
+    """
+    Enlarge an image with black
+    :param img:
+    :param enlarge_percentage:
+    :return:
+    """
     # Getting the bigger side of the image
     s = max(img.shape[0:2])
     s = round(s * enlarge_percentage)
@@ -271,6 +277,14 @@ def image_fill(img, enlarge_percentage=1.5):
 
 
 def image_draw_point(img, x, y, color=(0, 0, 255)):
+    """
+    Draw a point into an image
+    :param img:
+    :param x:
+    :param y:
+    :param color:
+    :return:
+    """
     max_y, max_x, _ = img.shape
     x, y = abs(int(x)), abs(int(y))
     if x > max_x:
@@ -305,9 +319,9 @@ def find_pose_from_homography(H, K, img, show_position=True):
     # debug code
     vector = -(R.transpose() * T)
 
-    x, y = vector[0][0], vector[0][1]       # red
-    x1, y1 = vector[1][0], vector[1][1]     # yellow
-    x2, y2 = vector[2][0], vector[2][1]     # purple
+    x, y = vector[0][0], vector[0][1]  # red
+    x1, y1 = vector[1][0], vector[1][1]  # yellow
+    x2, y2 = vector[2][0], vector[2][1]  # purple
 
     # x,y,z = np.dot(-np.transpose(R),T)
 
@@ -328,23 +342,6 @@ def find_pose_from_homography(H, K, img, show_position=True):
         cv2.imshow("Camera Position", train_img_new)
 
     return R, T
-
-
-def find_pose_from_pnp(trainKeypoints, queryKeypoints, matches, K, d, img, show_position=True):
-    train_pts = np.float32([np.append(trainKeypoints[m.trainIdx].pt, 1.) for m in matches])
-    query_pts = np.float32([queryKeypoints[m.queryIdx].pt for m in matches])
-
-    ret, rvecs, tvecs = cv2.solvePnP(train_pts, query_pts, K, d)
-    rotM = cv2.Rodrigues(rvecs)[0]
-    cameraPosition = -np.matrix(rotM).T * np.matrix(tvecs)
-    # cameraPosition = -(rotM.transpose() * tvecs)
-
-    train_img_new = img.copy()
-    train_img_new, x, y = image_draw_point(train_img_new, cameraPosition[0][0], cameraPosition[1][0], (0, 0, 255))
-    if show_position:
-        cv2.imshow("Camera Position", cv2.resize(train_img_new, None, fx=0.4, fy=0.4))
-
-    return train_img_new
 
 
 def extract_pixel_intensity(img):
