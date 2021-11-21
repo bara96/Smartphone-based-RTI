@@ -35,25 +35,15 @@ class FeatureMatcher:
         else:
             self.algorithm_params = dict(min_match=10, threshold=0.75)
 
-    def setOrbThreshold(self, matcher):
+    def setThreshold(self, matcher):
         """
         Set default threshold for ORB
-        :param matcher:
+        :param matcher: matcher algorithm
         """
         if matcher == FeatureMatcher.MATCHING_ALGORITHM_KNN:
             self.algorithm_params = dict(min_match=10, threshold=0.75)
         elif matcher == FeatureMatcher.MATCHING_ALGORITHM_FLANN:
-            self.algorithm_params = dict(min_match=15, threshold=0.8)
-        else:
-            self.algorithm_params = dict(min_match=10, threshold=0.75)
-
-    def setSiftThreshold(self, matcher):
-        """
-        Set default threshold for SIFT
-        :param matcher:
-        """
-        if matcher == FeatureMatcher.MATCHING_ALGORITHM_FLANN:
-            self.algorithm_params = dict(min_match=15, threshold=0.8)
+            self.algorithm_params = dict(min_match=10, threshold=0.80)
         else:
             self.algorithm_params = dict(min_match=10, threshold=0.75)
 
@@ -80,7 +70,7 @@ class FeatureMatcher:
             if m.distance < 0.75 * n.distance:
                 good_matches.append(m)
 
-        if len(good_matches) < 30:
+        if len(good_matches) < 15:
             return False
         return True
 
@@ -139,16 +129,16 @@ class FeatureMatcher:
     def checkOutliers(trainKeypoints, queryKeypoints, matches):
         """
         Usage of Ransac to remove outliers from matches
-        :param trainKeypoints: 
-        :param queryKeypoints: 
-        :param matches: 
+        :param trainKeypoints: keypoints of the train image
+        :param queryKeypoints: keypoints of the query image
+        :param matches: matches between the keypoints of  the two images
         :return: 
         """
         from skimage.measure import ransac
         from skimage.transform import AffineTransform
 
         MIN_SAMPLES = 4
-        if len(matches) < MIN_SAMPLES:
+        if len(matches) <= MIN_SAMPLES:
             return trainKeypoints, queryKeypoints, matches, False
 
         train_pts = np.float32([trainKeypoints[m.trainIdx].pt for m in matches]).reshape(-1, 2)
@@ -157,7 +147,7 @@ class FeatureMatcher:
         model, inliers = ransac(
             (train_pts, query_pts),
             AffineTransform, min_samples=MIN_SAMPLES,
-            residual_threshold=8, max_trials=100
+            residual_threshold=8, max_trials=500
         )
 
         n_inliers = np.sum(inliers)
@@ -172,12 +162,12 @@ class FeatureMatcher:
     def findPosePNP(trainKeypoints, queryKeypoints, matches, K, d, img, show_position=True):
         """
         Solve PNP and use Rodrigues to find Camera world position
-        :param trainKeypoints:
-        :param queryKeypoints:
-        :param matches:
-        :param K:
-        :param d:
-        :param img:
+        :param trainKeypoints: keypoints of the train image
+        :param queryKeypoints: keypoints of the query image
+        :param matches: matches between the keypoints of  the two images
+        :param K: camera intrinsics matrix
+        :param d: camera intrinsics distortion
+        :param img: OpenCv image
         :param show_position:
         :return:
         """
@@ -190,8 +180,8 @@ class FeatureMatcher:
         # camera_position = -(rotM.transpose() * tvecs)
 
         train_img_new = img.copy()
-        train_img_new, x, y = ut.image_draw_point(train_img_new, camera_position[0][0], camera_position[1][0],
-                                                  (0, 0, 255))
+        train_img_new, x, y = ut.image_draw_circle(train_img_new, camera_position[0][0], camera_position[1][0],
+                                                   (0, 0, 255))
         if show_position:
             cv2.imshow("Camera Position", cv2.resize(train_img_new, None, fx=0.4, fy=0.4))
 
@@ -207,15 +197,13 @@ class FeatureMatcher:
         FLANN_INDEX_LSH = 6
 
         if self.detector_algorithm == FeatureMatcher.DETECTOR_ALGORITHM_ORB:
-            # Initialize the ORB detector algorithm
+            # Initialize the ORB detector algorithm and the Matcher for matching the keypoints
             detector_alg = cv2.ORB_create()
             if self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE:
                 # feature matching using Brute-Force matching with ORB Descriptors
-                # Initialize the Matcher for matching the keypoints
                 matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
             elif self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_KNN:
                 # feature matching using KNN matching with ORB Descriptors
-                # Initialize the Matcher for matching the keypoints
                 matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
             elif self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_FLANN:
                 # feature matching using FLANN matching with ORB Descriptors
@@ -230,9 +218,15 @@ class FeatureMatcher:
             else:
                 raise Exception('Matching algorithm for orb not recognised!')
         elif self.detector_algorithm == FeatureMatcher.DETECTOR_ALGORITHM_SIFT:
-            # Initialize the SIFT detector algorithm
+            # Initialize the SIFT detector algorithm and the Matcher for matching the keypoints
             detector_alg = cv2.SIFT_create()
-            if self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_FLANN:
+            if self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE:
+                # feature matching using Brute-Force matching with SIFT Descriptors
+                matcher = cv2.BFMatcher(cv2.NORM_L1, crossCheck=True)
+            elif self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_KNN:
+                # feature matching using KNN matching with SIFT Descriptors
+                matcher = cv2.BFMatcher(cv2.NORM_L1, crossCheck=False)
+            elif self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_FLANN:
                 # feature matching using FLANN matching with SIFT Descriptors
                 index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
                 # It specifies the number of times the trees in the index should be recursively traversed.
@@ -317,12 +311,12 @@ class FeatureMatcher:
             # The query image is what we need to find in train image
             query_filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
             query_img = cv2.imread(query_filename)
-            query_img = ut.enchant_brightness_and_contrast(query_img)
+            #query_img = ut.enchant_brightness_and_contrast(query_img)
             query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
-            # train_img_bw = ut.enchant_morphological(train_img_bw, [cv2.MORPH_OPEN])
-            # query_img_bw = ut.enchant_morphological(query_img_bw, [cv2.MORPH_OPEN])
-            for k in range(0, 10):
+            #train_img_bw = ut.enchant_morphological(train_img_bw, [cv2.MORPH_OPEN])
+            #query_img_bw = ut.enchant_morphological(query_img_bw, [cv2.MORPH_OPEN])
+            for k in range(0, 5):
                 train_img_bw = cv2.GaussianBlur(train_img_bw, (5, 5), 0)
                 query_img_bw = cv2.GaussianBlur(query_img_bw, (5, 5), 0)
 
@@ -341,7 +335,7 @@ class FeatureMatcher:
                 plt.show(block=False)
 
             # match the keypoints and sort them in the order of their distance.
-            if self.detector_algorithm == FeatureMatcher.DETECTOR_ALGORITHM_ORB and self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE:
+            if self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE:
                 matches = matcher.match(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors)
                 good_matches = matches
             else:

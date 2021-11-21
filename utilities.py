@@ -233,8 +233,8 @@ def enchant_brightness_and_contrast(image, clip_hist_percent=1):
 def write_on_file(data, filename):
     """
     Write data on pickle file
-    :param data:
-    :param filename:
+    :param data: Object to save
+    :param filename: filename of the pickle file to save
     """
     import pickle
     with open(filename, "wb") as f:
@@ -244,7 +244,7 @@ def write_on_file(data, filename):
 def read_from_file(filename):
     """
     Read data from pickle file
-    :param filename:
+    :param filename: filename of the pickle file to read
     :return:
     """
     import pickle
@@ -256,8 +256,8 @@ def read_from_file(filename):
 def image_fill(img, enlarge_percentage=1.5):
     """
     Enlarge an image with black
-    :param img:
-    :param enlarge_percentage:
+    :param img: OpenCv image
+    :param enlarge_percentage: % of image to enlarge
     :return:
     """
     # Getting the bigger side of the image
@@ -276,13 +276,15 @@ def image_fill(img, enlarge_percentage=1.5):
     return img_new
 
 
-def image_draw_point(img, x, y, color=(0, 0, 255)):
+def image_draw_circle(img, x, y, color=(0, 0, 255), radius=250, thickness=10):
     """
     Draw a point into an image
-    :param img:
-    :param x:
-    :param y:
-    :param color:
+    :param thickness: circle line thickness
+    :param radius: circle radius
+    :param img: OpenCv image
+    :param x: real world coordinate
+    :param y: real world coordinate
+    :param color: circle color
     :return:
     """
     max_y, max_x, _ = img.shape
@@ -292,13 +294,15 @@ def image_draw_point(img, x, y, color=(0, 0, 255)):
     if y > max_y:
         y = max_y - 1
 
-    return cv2.circle(img, (x, y), radius=0, color=color, thickness=30), x, y
+    return cv2.circle(img, (x, y), radius=radius, color=color, thickness=thickness), x, y
 
 
 def find_pose_from_homography(H, K, img, show_position=True):
     """
-    H is the homography matrix
-    K is the camera calibration matrix
+    Find R and T from homography
+    :param H: is the homography matrix
+    :param K: is the camera calibration matrix
+    :return:
     T is translation
     R is rotation
     """
@@ -328,9 +332,9 @@ def find_pose_from_homography(H, K, img, show_position=True):
     train_img_new = img.copy()
     x_scale, y_scale = 0.4, 0.4
 
-    train_img_new, x, y = image_draw_point(train_img_new, x, y, (0, 0, 255))
-    train_img_new, x1, y1 = image_draw_point(train_img_new, x1, y1, (0, 255, 255))
-    train_img_new, x2, y2 = image_draw_point(train_img_new, x2, y2, (255, 0, 255))
+    train_img_new, x, y = image_draw_circle(train_img_new, x, y, (0, 0, 255))
+    train_img_new, x1, y1 = image_draw_circle(train_img_new, x1, y1, (0, 255, 255))
+    train_img_new, x2, y2 = image_draw_circle(train_img_new, x2, y2, (255, 0, 255))
     train_img_new = cv2.resize(train_img_new, None, fx=x_scale, fy=y_scale)
 
     # print("x: ", x, "y: ", y)
