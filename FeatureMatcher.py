@@ -128,13 +128,13 @@ class FeatureMatcher:
         :return:
         """
         detector_alg = cv2.ORB_create()
-        matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+        matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
 
         train_img_bw = cv2.cvtColor(train_image, cv2.COLOR_BGR2GRAY)
         query_img_bw = cv2.cvtColor(homography_image, cv2.COLOR_BGR2GRAY)
 
-        train_img_bw = cv2.GaussianBlur(train_img_bw, (5, 5), 0)
-        query_img_bw = cv2.GaussianBlur(query_img_bw, (5, 5), 0)
+        train_img_bw = ut.image_blur(train_img_bw, iterations=2)
+        query_img_bw = ut.image_blur(query_img_bw, iterations=2)
 
         queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
         trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
@@ -143,11 +143,12 @@ class FeatureMatcher:
         # Apply Lowe ratio test
         good_matches = []
         for m, n in matches:
-            if m.distance < 0.70 * n.distance:
+            if m.distance < 0.75 * n.distance:
                 good_matches.append(m)
+
         good_matches = sorted(good_matches, key=lambda x: x.distance)
 
-        print("Checks:", len(good_matches))
+        # print("Checks:", len(good_matches))
         if len(good_matches) < 25:
             return False
         return True
@@ -179,13 +180,13 @@ class FeatureMatcher:
 
         if transform_train:
             # Warp train image into query image based on homography
-            matrix, mask = cv2.findHomography(train_pts, query_pts, cv2.RANSAC, 8)
+            matrix, mask = cv2.findHomography(train_pts, query_pts, cv2.LMEDS, 6)
             if matrix is None:
                 return None
             im_out = cv2.warpPerspective(train_image, matrix, (query_image.shape[1], query_image.shape[0]))
         else:
             # Warp train image into query image based on homography
-            matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 8)
+            matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.LMEDS, 6)
             if matrix is None:
                 return None
             im_out = cv2.warpPerspective(query_image, matrix, (train_image.shape[1], train_image.shape[0]))
@@ -225,13 +226,16 @@ class FeatureMatcher:
         model, inliers = ransac(
             (train_pts, query_pts),
             AffineTransform, min_samples=MIN_SAMPLES,
-            residual_threshold=8, max_trials=500
+            residual_threshold=8, max_trials=200
         )
+
+        if inliers is None:
+            return train_keypoints, query_keypoints, matches, False
 
         n_inliers = np.sum(inliers)
 
-        inlier_keypoints_train = [cv2.KeyPoint(point[0], point[1], 1) for point in train_pts[inliers]]
-        inlier_keypoints_query = [cv2.KeyPoint(point[0], point[1], 1) for point in query_pts[inliers]]
+        inlier_keypoints_train = [cv2.KeyPoint(float(point[0]), float(point[1]), 1.) for point in train_pts[inliers]]
+        inlier_keypoints_query = [cv2.KeyPoint(float(point[0]),  float(point[1]), 1.) for point in query_pts[inliers]]
         placeholder_matches = [cv2.DMatch(idx, idx, 1) for idx in range(n_inliers)]
 
         return inlier_keypoints_train, inlier_keypoints_query, placeholder_matches, True
@@ -289,6 +293,11 @@ class FeatureMatcher:
             show_camera_position = True
             show_matches = True
             show_histogram = True
+        elif show_params is False:
+            show_homography = False
+            show_camera_position = False
+            show_matches = False
+            show_histogram = False
         elif show_params is not None:
             if show_params['homography'] is not None:
                 show_homography = show_params['homography']
@@ -334,7 +343,6 @@ class FeatureMatcher:
             train_img = cv2.imread(train_filename)
 
             # Read the query image
-            # The query image is what we need to find in train image
             query_filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
             query_img = cv2.imread(query_filename)
 
@@ -352,15 +360,14 @@ class FeatureMatcher:
             Image enchantments Phase
             '''
             train_img_bw = cv2.cvtColor(train_img, cv2.COLOR_BGR2GRAY)
-            # query_img = ut.enchant_brightness_and_contrast(query_img)
+            query_img = ut.enchant_brightness_and_contrast(query_img)
             query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
             #train_img_bw = ut.enchant_morphological(train_img_bw, [cv2.MORPH_OPEN])
             #query_img_bw = ut.enchant_morphological(query_img_bw, [cv2.MORPH_OPEN])
 
-            for k in range(0, 5):
-                train_img_bw = cv2.GaussianBlur(train_img_bw, (5, 5), 0)
-                query_img_bw = cv2.GaussianBlur(query_img_bw, (5, 5), 0)
+            train_img_bw = ut.image_blur(train_img_bw, iterations=5)
+            query_img_bw = ut.image_blur(query_img_bw, iterations=5)
 
             '''
             Feature Matching Phase
@@ -381,12 +388,13 @@ class FeatureMatcher:
                     if m.distance < THRESHOLD * n.distance:
                         good_matches.append(m)
 
-            good_matches = sorted(good_matches, key=lambda x: x.distance)
-
             # remove outliers
             trainKeypoints, queryKeypoints, good_matches, check = FeatureMatcher._checkOutliers(train_keypoints=trainKeypoints,
                                                                                                 query_keypoints=queryKeypoints,
                                                                                                 matches=good_matches)
+
+            good_matches = sorted(good_matches, key=lambda x: x.distance)
+
             ''' 
             Homography checks Phase 
             '''
@@ -412,7 +420,7 @@ class FeatureMatcher:
 
                     K, d = ut.get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
 
-                    camera_position = FeatureMatcher._findPosePNP(trainKeypoints, queryKeypoints, good_matches,
+                    camera_position = FeatureMatcher._findPosePNP(trainKeypoints, queryKeypoints, good_matches[:8],
                                                                   K, d, train_img, show_camera_position)
 
                     data = dict(trainImage=train_filename,

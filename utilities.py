@@ -253,6 +253,18 @@ def read_from_file(filename):
     return results
 
 
+def image_blur(image, iterations=1):
+    """
+    Blur image with GaussianBlur
+    :param image: Opencv image
+    :param iterations: n° of times to apply GaussianBlur
+    :return:
+    """
+    for k in range(0, iterations):
+        image = cv2.GaussianBlur(image, (5, 5), 0)
+    return image
+
+
 def image_fill(img, enlarge_percentage=1.5):
     """
     Enlarge an image with black

@@ -219,7 +219,7 @@ def compute(video_name='coin1', sync=False):
                         detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_SIFT,
                         matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
 
-    fm.algorithm_params = dict(min_match=6, threshold=0.8)
+    fm.algorithm_params = dict(min_match=6, threshold=0.9)
     show_images = dict(homography=True, camera_position=True, matches=True, histogram=False)
     results = fm.extractFeatures(show_params=show_images, save_images=False)
 
