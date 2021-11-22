@@ -288,11 +288,16 @@ def image_draw_circle(img, x, y, color=(0, 0, 255), radius=250, thickness=10):
     :return:
     """
     max_y, max_x, _ = img.shape
-    x, y = abs(int(x)), abs(int(y))
+    x, y = int(x), int(y)
     if x > max_x:
         x = max_x - 1
+    if x < 0:
+        x = 1
+
     if y > max_y:
         y = max_y - 1
+    if y < 0:
+        y = 1
 
     return cv2.circle(img, (x, y), radius=radius, color=color, thickness=thickness), x, y
 
