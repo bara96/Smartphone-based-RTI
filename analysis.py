@@ -219,9 +219,9 @@ def compute(video_name='coin1', sync=False):
                         detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_ORB,
                         matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
 
-    fm.algorithm_params = dict(min_match=5, threshold=0.9)
+    fm.setThreshold(min_matches=5, lowe_threshold=0.9, ransac_threshold=4)
     show_images = dict(homography=True, camera_position=True, matches=True, histogram=False)
-    results = fm.extractFeatures(show_params=show_images, save_images=False)
+    results = fm.extractFeatures(show_params=False, save_images=False)
 
     # write results on file
     file_path = "assets/results_{}.pickle".format(video_name)

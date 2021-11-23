@@ -15,10 +15,13 @@ class FeatureMatcher:
     MATCHING_ALGORITHM_KNN = 'KNN'
     MATCHING_ALGORITHM_FLANN = 'FLANN'
 
+    _RANSAC_THRESHOLD = 0.75
+    _LOWE_THRESHOLD = 0.75
+    _MIN_MATCHES = 4
+
     def __init__(self, frames_static_folder_path, frames_moving_folder_path,
                  detector_algorithm=DETECTOR_ALGORITHM_ORB,
-                 matching_algorithm=MATCHING_ALGORITHM_BRUTEFORCE,
-                 algorithm_params=None):
+                 matching_algorithm=MATCHING_ALGORITHM_BRUTEFORCE):
         """
         Constructor
         :param frames_static_folder_path: path to the static frames folder
@@ -31,22 +34,28 @@ class FeatureMatcher:
         self.frames_moving_folder_path = frames_moving_folder_path
         self.detector_algorithm = detector_algorithm
         self.matching_algorithm = matching_algorithm
-        if algorithm_params is not None:
-            self.algorithm_params = algorithm_params
-        else:
-            self.algorithm_params = dict(min_match=10, threshold=0.75)
+        self.setThreshold()
 
-    def setThreshold(self, matcher):
+    def setThreshold(self, matcher=None, min_matches=10, lowe_threshold=0.75, ransac_threshold=6):
         """
         Set a default pre-saved threshold for Lowe ratio test
+        :param min_matches:
+        :param lowe_threshold:
+        :param ransac_threshold:
         :param matcher: matcher algorithm
         """
         if matcher == FeatureMatcher.MATCHING_ALGORITHM_KNN:
-            self.algorithm_params = dict(min_match=10, threshold=0.75)
+            self._MIN_MATCHES = 10
+            self._RANSAC_THRESHOLD = 4
+            self._LOWE_THRESHOLD = 0.75
         elif matcher == FeatureMatcher.MATCHING_ALGORITHM_FLANN:
-            self.algorithm_params = dict(min_match=10, threshold=0.80)
+            self._MIN_MATCHES = 10
+            self._RANSAC_THRESHOLD = 4
+            self._LOWE_THRESHOLD = 0.8
         else:
-            self.algorithm_params = dict(min_match=10, threshold=0.75)
+            self._MIN_MATCHES = min_matches
+            self._RANSAC_THRESHOLD = ransac_threshold
+            self._LOWE_THRESHOLD = lowe_threshold
 
     def prepareMatcher(self):
         """
@@ -133,11 +142,15 @@ class FeatureMatcher:
         train_img_bw = cv2.cvtColor(train_image, cv2.COLOR_BGR2GRAY)
         query_img_bw = cv2.cvtColor(homography_image, cv2.COLOR_BGR2GRAY)
 
-        train_img_bw = ut.image_blur(train_img_bw, iterations=4)
-        query_img_bw = ut.image_blur(query_img_bw, iterations=4)
+        train_img_bw = ut.image_blur(train_img_bw, iterations=5)
+        query_img_bw = ut.image_blur(query_img_bw, iterations=5)
 
         queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
         trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
+
+        if trainKeypoints is None:
+            return False
+
         matches = matcher.match(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors)
 
         # remove outliers
@@ -199,7 +212,7 @@ class FeatureMatcher:
                 os.mkdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH)
             cv2.imwrite(cst.TRANSFORMATION_RESULTS_FOLDER_PATH + '/' + save_as, im_out)
 
-        if FeatureMatcher._homographyCheck(im_out, dst_image):
+        if FeatureMatcher._homographyCheck(dst_image, im_out):
             return matrix
         else:
             return None
@@ -318,20 +331,15 @@ class FeatureMatcher:
         detector_alg, matcher = self.prepareMatcher()
 
         # default algorithm_params
-        MIN_MATCH = 10
-        THRESHOLD = 0.75
-        if self.algorithm_params['min_match'] is not None:
-            MIN_MATCH = self.algorithm_params['min_match']
-        if MIN_MATCH < 4:
-            MIN_MATCH = 4  # required at least 4 matches for homography
-        if self.algorithm_params['threshold'] is not None:
-            THRESHOLD = self.algorithm_params['threshold']
+        if self._MIN_MATCHES < 4:
+            self._MIN_MATCHES = 4  # required at least 4 matches for homography
 
         print("Selected parameters:")
         print("- Detector Algorithm: ", self.detector_algorithm)
         print("- Matching Algorithm: ", self.matching_algorithm)
-        print("- MIN MATCH: ", MIN_MATCH)
-        print("- THRESHOLD: ", THRESHOLD)
+        print("- MIN MATCH: ", self._MIN_MATCHES)
+        print("- LOWE THRESHOLD: ", self._LOWE_THRESHOLD)
+        print("- RANSAC THRESHOLD: ", self._RANSAC_THRESHOLD)
         print("\n")
 
         dataset = []
@@ -366,15 +374,15 @@ class FeatureMatcher:
             #train_img_bw = ut.enchant_morphological(train_img_bw, [cv2.MORPH_OPEN])
             #query_img_bw = ut.enchant_morphological(query_img_bw, [cv2.MORPH_OPEN])
 
-            train_img_bw = ut.image_blur(train_img_bw, iterations=6)
-            query_img_bw = ut.image_blur(query_img_bw, iterations=6)
+            train_img_bw = ut.image_blur(train_img_bw, iterations=10)
+            query_img_bw = ut.image_blur(query_img_bw, iterations=10)
 
             '''
             Feature Matching Phase
             '''
             # Now detect the keypoints and compute the descriptors for the query image and train image
-            queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
             trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
+            queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
 
             # match the keypoints and sort them in the order of their distance.
             if self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE:
@@ -385,14 +393,14 @@ class FeatureMatcher:
                 # Apply Lowe ratio test
                 good_matches = []
                 for m, n in matches:
-                    if m.distance < THRESHOLD * n.distance:
+                    if m.distance < self._LOWE_THRESHOLD * n.distance:
                         good_matches.append(m)
 
             # remove outliers
             trainKeypoints, queryKeypoints, good_matches, check = FeatureMatcher._checkOutliers(train_keypoints=trainKeypoints,
                                                                                                 query_keypoints=queryKeypoints,
                                                                                                 matches=good_matches,
-                                                                                                ransac_threshold=5)
+                                                                                                ransac_threshold=self._RANSAC_THRESHOLD)
 
             good_matches = sorted(good_matches, key=lambda x: x.distance)
 
@@ -401,7 +409,7 @@ class FeatureMatcher:
             '''
             if not check:
                 print("Discarded: Can't remove outliers")
-            elif len(good_matches) >= MIN_MATCH:
+            elif len(good_matches) >= self._MIN_MATCHES:
                 # try to transform the static into the moving
                 save_as = None
                 if save_images:
@@ -416,7 +424,7 @@ class FeatureMatcher:
                                                                       show_images=show_homography,
                                                                       save_as=save_as)
                 if homography is not None:
-                    print("Accepted: matches found - %d/%d" % (len(good_matches), MIN_MATCH))
+                    print("Accepted: matches found - %d/%d" % (len(good_matches), self._MIN_MATCHES))
                     n_accepted += 1
 
                     K, d = ut.get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
@@ -433,7 +441,7 @@ class FeatureMatcher:
                     print("Discarded: Inaccurate homography")
             else:
                 n_discarded += 1
-                print("Discarded: Not enough matches are found - %d/%d" % (len(good_matches), MIN_MATCH))
+                print("Discarded: Not enough matches are found - %d/%d" % (len(good_matches), self._MIN_MATCHES))
 
             '''
             Show results Phase
