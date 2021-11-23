@@ -128,68 +128,68 @@ class FeatureMatcher:
         :return:
         """
         detector_alg = cv2.ORB_create()
-        matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
+        matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
         train_img_bw = cv2.cvtColor(train_image, cv2.COLOR_BGR2GRAY)
         query_img_bw = cv2.cvtColor(homography_image, cv2.COLOR_BGR2GRAY)
 
-        train_img_bw = ut.image_blur(train_img_bw, iterations=2)
-        query_img_bw = ut.image_blur(query_img_bw, iterations=2)
+        train_img_bw = ut.image_blur(train_img_bw, iterations=4)
+        query_img_bw = ut.image_blur(query_img_bw, iterations=4)
 
         queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
         trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
-        matches = matcher.knnMatch(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors, k=2)
+        matches = matcher.match(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors)
 
-        # Apply Lowe ratio test
-        good_matches = []
-        for m, n in matches:
-            if m.distance < 0.75 * n.distance:
-                good_matches.append(m)
+        # remove outliers
+        trainKeypoints, queryKeypoints, good_matches, check = FeatureMatcher._checkOutliers(
+            train_keypoints=trainKeypoints,
+            query_keypoints=queryKeypoints,
+            matches=matches, ransac_threshold=6)
 
         good_matches = sorted(good_matches, key=lambda x: x.distance)
 
-        # print("Checks:", len(good_matches))
+        debug = False
+        if debug:
+            final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches, None)
+            cv2.imshow("Homography Check", cv2.resize(final_img, None, fx=0.3, fy=0.3))
+            print("Checks:", len(good_matches))
+
         if len(good_matches) < 25:
             return False
         return True
 
     @staticmethod
-    def _homographyTransformation(query_image, query_features, train_image, train_features, matches,
-                                 transform_train=True, show_images=True, save_as=None):
+    def _homographyTransformation(src_image, src_keypoints, dst_image, dst_keypoints, matches,
+                                  transform_inverse=False, show_images=True, save_as=None):
         """
-        Find homography matrix and do perspective transform
-        :param query_image: OpenCv image
-        :param query_features: keypoints, descriptors of the query_image
-        :param train_image: OpenCv image
-        :param train_features: keypoints, descriptors of the train_image
-        :param matches: matches between train_image and query_image
-        :param transform_train: if True transform train into query image, otherwise transform query into train image
+        Find homography matrix and do perspective transform between source and destination image
+        :param dst_image: OpenCv image
+        :param dst_keypoints: keypoints, descriptors of the source image
+        :param src_image: OpenCv image
+        :param src_keypoints: keypoints, descriptors of the destination image
+        :param matches: matches between source and destination keypoints
+        :param transform_inverse: if True transform dst_image into src_image, otherwise transform src_image into dst_image image
         :param show_images: if True show results
         :param save_as: save filename for results, if None don't save
         :return:
         """
         import os
 
-        kp_query_image, desc_query_image = query_features[0], query_features[1]
-        kp_train_image, desc_train_image = train_features[0], train_features[1]
+        src_pts = np.float32([src_keypoints[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+        dst_pts = np.float32([dst_keypoints[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
 
-        query_pts = np.float32([kp_query_image[m.queryIdx]
-                               .pt for m in matches]).reshape(-1, 1, 2)
-        train_pts = np.float32([kp_train_image[m.trainIdx]
-                               .pt for m in matches]).reshape(-1, 1, 2)
-
-        if transform_train:
+        if not transform_inverse:
             # Warp train image into query image based on homography
-            matrix, mask = cv2.findHomography(train_pts, query_pts, cv2.LMEDS, 6)
+            matrix, mask = cv2.findHomography(src_pts, dst_pts, None, 6)
             if matrix is None:
                 return None
-            im_out = cv2.warpPerspective(train_image, matrix, (query_image.shape[1], query_image.shape[0]))
+            im_out = cv2.warpPerspective(src_image, matrix, (dst_image.shape[1], dst_image.shape[0]))
         else:
             # Warp train image into query image based on homography
-            matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.LMEDS, 6)
+            matrix, mask = cv2.findHomography(dst_pts, src_pts, None, 6)
             if matrix is None:
                 return None
-            im_out = cv2.warpPerspective(query_image, matrix, (train_image.shape[1], train_image.shape[0]))
+            im_out = cv2.warpPerspective(dst_image, matrix, (src_image.shape[1], src_image.shape[0]))
 
         if show_images:
             cv2.imshow("Transformed", cv2.resize(im_out, None, fx=0.3, fy=0.3))
@@ -199,13 +199,13 @@ class FeatureMatcher:
                 os.mkdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH)
             cv2.imwrite(cst.TRANSFORMATION_RESULTS_FOLDER_PATH + '/' + save_as, im_out)
 
-        if FeatureMatcher._homographyCheck(im_out, train_image):
+        if FeatureMatcher._homographyCheck(im_out, dst_image):
             return matrix
         else:
             return None
 
     @staticmethod
-    def _checkOutliers(train_keypoints, query_keypoints, matches):
+    def _checkOutliers(train_keypoints, query_keypoints, matches, ransac_threshold=7):
         """
         Usage of Ransac to remove outliers from matches
         :param train_keypoints: keypoints of the train image
@@ -226,7 +226,7 @@ class FeatureMatcher:
         model, inliers = ransac(
             (train_pts, query_pts),
             AffineTransform, min_samples=MIN_SAMPLES,
-            residual_threshold=8, max_trials=200
+            residual_threshold=ransac_threshold, max_trials=200
         )
 
         if inliers is None:
@@ -366,8 +366,8 @@ class FeatureMatcher:
             #train_img_bw = ut.enchant_morphological(train_img_bw, [cv2.MORPH_OPEN])
             #query_img_bw = ut.enchant_morphological(query_img_bw, [cv2.MORPH_OPEN])
 
-            train_img_bw = ut.image_blur(train_img_bw, iterations=5)
-            query_img_bw = ut.image_blur(query_img_bw, iterations=5)
+            train_img_bw = ut.image_blur(train_img_bw, iterations=6)
+            query_img_bw = ut.image_blur(query_img_bw, iterations=6)
 
             '''
             Feature Matching Phase
@@ -391,7 +391,8 @@ class FeatureMatcher:
             # remove outliers
             trainKeypoints, queryKeypoints, good_matches, check = FeatureMatcher._checkOutliers(train_keypoints=trainKeypoints,
                                                                                                 query_keypoints=queryKeypoints,
-                                                                                                matches=good_matches)
+                                                                                                matches=good_matches,
+                                                                                                ransac_threshold=5)
 
             good_matches = sorted(good_matches, key=lambda x: x.distance)
 
@@ -407,10 +408,10 @@ class FeatureMatcher:
                     save_as = "frame_{}.png".format(i)
 
                 # find homography to check if matches are acceptable
-                homography = FeatureMatcher._homographyTransformation(query_image=query_img,
-                                                                      query_features=(queryKeypoints, queryDescriptors),
-                                                                      train_image=train_img,
-                                                                      train_features=(trainKeypoints, trainDescriptors),
+                homography = FeatureMatcher._homographyTransformation(src_image=train_img,
+                                                                      src_keypoints=trainKeypoints,
+                                                                      dst_image=query_img,
+                                                                      dst_keypoints=queryKeypoints,
                                                                       matches=good_matches,
                                                                       show_images=show_homography,
                                                                       save_as=save_as)
@@ -420,7 +421,7 @@ class FeatureMatcher:
 
                     K, d = ut.get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
 
-                    camera_position = FeatureMatcher._findPosePNP(trainKeypoints, queryKeypoints, good_matches[:8],
+                    camera_position = FeatureMatcher._findPosePNP(trainKeypoints, queryKeypoints, good_matches,
                                                                   K, d, train_img, show_camera_position)
 
                     data = dict(trainImage=train_filename,

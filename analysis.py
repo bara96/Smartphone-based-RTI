@@ -216,10 +216,10 @@ def compute(video_name='coin1', sync=False):
         sync_videos(video_static_path, video_moving_path)
 
     fm = FeatureMatcher(frames_static_folder, frames_moving_folder,
-                        detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_SIFT,
+                        detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_ORB,
                         matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
 
-    fm.algorithm_params = dict(min_match=6, threshold=0.9)
+    fm.algorithm_params = dict(min_match=5, threshold=0.9)
     show_images = dict(homography=True, camera_position=True, matches=True, histogram=False)
     results = fm.extractFeatures(show_params=show_images, save_images=False)
 
