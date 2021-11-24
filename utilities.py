@@ -314,6 +314,11 @@ def image_draw_circle(img, x, y, color=(0, 0, 255), radius=250, thickness=10):
     return cv2.circle(img, (x, y), radius=radius, color=color, thickness=thickness), x, y
 
 
+def printCoordinates(coordinates, scale):
+    x = round(coordinates[0]*scale)
+    y = round(coordinates[1]*scale)
+    return x, y
+
 def find_pose_from_homography(H, K, img, show_position=True):
     """
     Find R and T from homography
