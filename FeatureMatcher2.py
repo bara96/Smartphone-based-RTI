@@ -34,14 +34,13 @@ class FeatureMatcher:
             filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
             img = cv2.imread(filename)
             img = ut.enchant_brightness_and_contrast(img)
-            #img = ut.image_blur(img, iterations=5)
+            img = ut.image_blur(img, iterations=10)
 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             canny = cv2.Canny(gray, 120, 255, 1)
-            #gray = np.float32(gray)
-            corners = cv2.goodFeaturesToTrack(image=canny,
+            corners = cv2.goodFeaturesToTrack(image=gray,
                                               maxCorners=100,
-                                              qualityLevel=0.4,
+                                              qualityLevel=0.2,
                                               minDistance=10)
             corners = np.int0(corners)
             if len(corners) > 0:
@@ -50,7 +49,7 @@ class FeatureMatcher:
                     cv2.circle(img, (x, y), 1, (0,0,255), 10)
 
             if show_params is True:
-                cv2.imshow('canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
+                #cv2.imshow('canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
                 cv2.imshow('results', cv2.resize(img, None, fx=0.6, fy=0.6))
                 cv2.waitKey(0)
 
