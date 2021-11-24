@@ -354,16 +354,6 @@ class FeatureMatcher:
             query_filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
             query_img = cv2.imread(query_filename)
 
-            # calculate brightness histogram
-            if show_histogram:
-                histr = cv2.calcHist([train_img], [0], None, [256], [0, 256])
-                plt.plot(histr)
-                plt.show(block=False)
-
-                histr = cv2.calcHist([query_img], [0], None, [256], [0, 256])
-                plt.plot(histr)
-                plt.show(block=False)
-
             '''
             Image enchantments Phase
             '''
