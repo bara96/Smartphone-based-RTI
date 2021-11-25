@@ -53,39 +53,24 @@ class FeatureMatcher:
             upper = int(min(255, (1.0 + sigma) * v))
             canny = cv2.Canny(gray, lower, upper)
             # canny = cv2.Canny(gray, 120, 140)
-            corners = cv2.goodFeaturesToTrack(image=canny,
-                                              maxCorners=100,
-                                              qualityLevel=0.2,
-                                              minDistance=10)
 
-            top_left = (w, h)
-            top_right = (0, h)
-            bottom_left = (w, 0)
-            bottom_right = (0, 0)
+            corners = cv2.goodFeaturesToTrack(image=canny,
+                                              maxCorners=500,
+                                              qualityLevel=0.2,
+                                              minDistance=10,
+                                              useHarrisDetector=False)
+
+
             if corners is not None:
                 corners = np.int0(corners)
+                corners = corners.reshape(len(corners), 2)
+                corners = sorted(corners, key=lambda tup: tup[0])  # order by x
                 if len(corners) > 0:
                     for corner in corners:
                         x, y = corner.ravel()
-                        if x < top_left[0] and y < top_left[1]:
-                            top_left = (x, y)
-                        if x > top_right[0] and y < top_right[1]:
-                            top_right = (x, y)
-                        if x < bottom_left[0] and y > bottom_left[1]:
-                            bottom_left = (x, y)
-                        if x > bottom_right[0] and y > bottom_right[1]:
-                            bottom_right = (x, y)
-                        # cv2.circle(img, (x, y), 1, (0, 0, 255), 10)
+                        cv2.circle(img, (x, y), 1, (0, 0, 255), 10)
+                        check_neighbours(img, x, y)
 
-                    cv2.circle(img, top_left, 1, (255, 0, 0), 10)
-                    cv2.circle(img, top_right, 1, (0, 255, 0), 10)
-                    cv2.circle(img, bottom_left, 1, (0, 255, 255), 10)
-                    cv2.circle(img, bottom_right, 1, (255, 0, 255), 10)
-
-                    print("top_left: ", ut.printCoordinates(top_left, 0.6))           # blue
-                    print("top_right: ", ut.printCoordinates(top_right, 0.6))         # green
-                    print("bottom_left: ", ut.printCoordinates(bottom_left, 0.6))     # yellow
-                    print("bottom_right: ", ut.printCoordinates(bottom_right, 0.6))   # purple
 
                 if show_params is True:
                     cv2.imshow('canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
@@ -95,3 +80,33 @@ class FeatureMatcher:
                 print("No corners detected")
 
         return dataset
+
+
+def check_neighbours(img, x, y):
+    h, w, _ = img.shape
+
+    d=1
+    if x-d < 0 or y-d < 0 or x+d > w or y+d > h:
+        print("Neighbours out of bound")
+        return False
+
+    cell_neighbors(img, x, y, 10)
+
+
+def cell_neighbors(img, x, y, d=1):
+    neighbours = []
+    test = img.copy()
+    for i in range(-d, d+1):
+        pixels = []
+        for k in range(-d, d+1):
+            pixel_B, pixel_G, pixel_R = img[y+i][x+k]
+            cv2.circle(test, (x+k, y+i), 1, (0, 0, 255), 1)
+            pixels.append([pixel_B, pixel_G, pixel_R])
+        neighbours.append(pixels)
+
+    neighbours = np.array(neighbours)
+    print(neighbours.shape)
+    print(neighbours, "\n")
+    cv2.imshow('test', cv2.resize(test, None, fx=0.6, fy=0.6))
+    cv2.waitKey(0)
+    return neighbours
