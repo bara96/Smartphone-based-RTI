@@ -48,27 +48,14 @@ class FeatureMatcher:
             canny = self._find_edges(gray)
 
             # refine all contours
-            cnts, _ = self._find_contours(canny)
+            cnts = self._find_contours(canny)
             cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
 
             # draw only the longest contour
             canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
-            cnts, perimeters = self._find_contours(canny)
+            cnts = self._find_contours(canny, True)
 
-            max_perimeter1 = 0
-            max_perimeter2 = 0
-            cnts_larger = None
-            cnts_smaller = None
-            for k in range(0, len(perimeters)):
-                if perimeters[k] > max_perimeter1:
-                    cnts_larger = cnts[k]
-                    max_perimeter1 = perimeters[k]
-                elif max_perimeter1 > perimeters[k] > max_perimeter2:
-                    cnts_smaller = cnts[k]
-                    max_perimeter2 = perimeters[k]
-
-            cv2.drawContours(canvas, cnts_larger, -1, (255, 255, 255), 3, cv2.LINE_AA)
-            cv2.drawContours(canvas, cnts_smaller, -1, (255, 255, 255), 3, cv2.LINE_AA)
+            cv2.drawContours(canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
 
             # find corners
             corners = cv2.goodFeaturesToTrack(image=canvas,
@@ -179,17 +166,24 @@ class FeatureMatcher:
         return canny
 
     @staticmethod
-    def _find_contours(img):
+    def _find_contours(img, max_only=False):
         # thresh = cv2.threshold(canvas, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
         # Find contours and sort for largest contour
         cnts, _ = cv2.findContours(img, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
         cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
 
+        max_perimeter = 0
+        cnt = None
         perimeters = []
         if len(cnts) > 0:
             for c in cnts:
-                # Perform contour approximation
-                perimeters.append(cv2.arcLength(c, True))
+                p = cv2.arcLength(c, True)
+                if p > max_perimeter:
+                    max_perimeter = p
+                    cnt = c
+                perimeters.append(p)
 
-            # cv2.drawContours(canvas, [approx], -1, (0, 0, 255), 1, cv2.LINE_AA)
-        return cnts, np.array(perimeters)
+        if max_only:
+            return np.array(cnt)
+
+        return cnts
