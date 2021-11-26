@@ -29,7 +29,7 @@ class FeatureMatcher:
         tot_frames = len(list_moving)
 
         dataset = []
-        for i in range(40, tot_frames):
+        for i in range(0, tot_frames):
             # Read the query image
             filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
             print("Frame n° ", i)
@@ -37,97 +37,159 @@ class FeatureMatcher:
             h, w, _ = img.shape
 
             ''' Image Enchanting Phase '''
-            img = ut.enchant_brightness_and_contrast(img)
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            gray = ut.enchant_brightness_and_contrast(img)
+            gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
             gray = 255 - gray
             # apply morphology
-            gray = ut.image_blur(gray, iterations=15)
-            gray = ut.enchant_morphological(gray, [cv2.MORPH_OPEN, cv2.MORPH_CLOSE], iterations=1)
+            gray = ut.image_blur(gray, iterations=10)
+            # gray = ut.enchant_morphological(gray, [cv2.MORPH_OPEN, cv2.MORPH_CLOSE], iterations=1)
 
-            ''' Edge Detector'''
-            sigma = 0.4
-            # compute the median of the single channel pixel intensities
-            v = np.median(gray)
-            # apply automatic Canny edge detection using the computed median
-            lower = int(max(0, (1.0 - sigma) * v))
-            upper = int(min(255, (1.0 + sigma) * v))
-            canny = cv2.Canny(gray, lower, upper)
-            # canny = cv2.Canny(gray, 120, 140)
-            canny = np.float32(canny)
+            # find image edges
+            canny = self._find_edges(gray)
 
-            corners = cv2.goodFeaturesToTrack(image=canny,
-                                              maxCorners=500,
-                                              qualityLevel=0.2,
+            # refine all contours
+            cnts, _ = self._find_contours(canny)
+            cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
+
+            # draw only the longest contour
+            canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
+            cnts, perimeters = self._find_contours(canny)
+
+            max_perimeter1 = 0
+            max_perimeter2 = 0
+            cnts_larger = None
+            cnts_smaller = None
+            for k in range(0, len(perimeters)):
+                if perimeters[k] > max_perimeter1:
+                    cnts_larger = cnts[k]
+                    max_perimeter1 = perimeters[k]
+                elif max_perimeter1 > perimeters[k] > max_perimeter2:
+                    cnts_smaller = cnts[k]
+                    max_perimeter2 = perimeters[k]
+
+            cv2.drawContours(canvas, cnts_larger, -1, (255, 255, 255), 3, cv2.LINE_AA)
+            cv2.drawContours(canvas, cnts_smaller, -1, (255, 255, 255), 3, cv2.LINE_AA)
+
+            # find corners
+            corners = cv2.goodFeaturesToTrack(image=canvas,
+                                              maxCorners=4,
+                                              qualityLevel=0.1,
                                               minDistance=30,
                                               blockSize=20,
                                               useHarrisDetector=False)
 
-            max_x = (0, 0)
-            min_x = (w, 0)
-            max_y = (0, 0)
-            min_y = (0, h)
-            if corners is not None:
+            if corners is not None and len(corners) > 0:
                 corners = np.int0(corners)
-                # corners = corners.reshape(len(corners), 2)
-                # corners = sorted(corners, key=lambda tup: tup[0])  # order by x
-                if len(corners) > 0:
-                    for corner in corners:
-                        x, y = corner.ravel()
-                        if x > max_x[0]:
-                            max_x = (x, y)
-                        if x < min_x[0]:
-                            min_x = (x, y)
-                        if y > max_y[1]:
-                            max_y = (x, y)
-                        if y < min_y[1]:
-                            min_y = (x, y)
-                        cv2.circle(img, (x, y), 1, (0, 0, 255), 10)
-                        # check_neighbours(img, x, y)
+                # find_default_corner(img, corners)
+                for corner in corners:
+                    x, y = corner.ravel()
+                    cv2.circle(img, (x, y), 1, (0, 0, 255), 10)
+                    # check_neighbours(img, x, y)
 
-                    cv2.circle(img, max_x, 1, cst.COLOR_BLUE, 10)
-                    cv2.putText(img, "max_x", (max_x[0] + 50, max_x[1]), cv2.FONT_HERSHEY_PLAIN, 2, cst.COLOR_RED, 4)
-                    cv2.circle(img, min_x, 1, cst.COLOR_PURPLE, 10)
-                    cv2.putText(img, "min_x", (min_x[0] - 150, min_x[1]), cv2.FONT_HERSHEY_PLAIN, 2, cst.COLOR_RED, 4)
-                    cv2.circle(img, max_y, 1, cst.COLOR_YELLOW, 10)
-                    cv2.putText(img, "max_y", (max_y[0], max_y[1] + 50), cv2.FONT_HERSHEY_PLAIN, 2, cst.COLOR_RED, 4)
-                    cv2.circle(img, min_y, 1, cst.COLOR_GREEN, 10)
-                    cv2.putText(img, "min_y", (min_y[0], min_y[1] - 50), cv2.FONT_HERSHEY_PLAIN, 2, cst.COLOR_RED, 4)
-
-                if show_params is True:
-                    cv2.imshow('canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
-                    cv2.imshow('results', cv2.resize(img, None, fx=0.6, fy=0.6))
-                    cv2.waitKey(0)
+            if show_params is True:
+                cv2.imshow('canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
+                cv2.imshow("canvas", cv2.resize(canvas, None, fx=0.6, fy=0.6))
+                cv2.imshow('results', cv2.resize(img, None, fx=0.6, fy=0.6))
+                cv2.waitKey(0)
             else:
                 print("No corners detected")
 
         return dataset
 
+    @staticmethod
+    def find_default_corner(img, corners):
+        # search x and y bounds
+        max_x = 0
+        min_x = img.shape[1]
+        max_y = 0
+        min_y = img.shape[0]
+        for corner in corners:
+            x, y = corner.ravel()
+            if x > max_x:
+                max_x = x
+            elif x < min_x:
+                min_x = x
+            if y > max_y:
+                max_y = y
+            elif y < min_y:
+                min_y = y
 
-def check_neighbours(img, x, y):
-    h, w, _ = img.shape
+        # search default point
+        show_img = img.copy()
+        default_corner = None
+        min_distance = 1000
+        x_median = round(max_x - (max_x - min_x) / 2)
+        y_median = round(max_y - (max_y - min_y) / 2)
+        for corner in corners:
+            x, y = corner.ravel()
+            if x < x_median:
+                x_direction = 1
+            else:
+                x_direction = -1
 
-    d = 1
-    if x - d < 0 or y - d < 0 or x + d > w or y + d > h:
-        print("Neighbours out of bound")
+            if y < y_median:
+                y_direction = 1
+            else:
+                y_direction = -1
+
+            distance = FeatureMatcher._search_white_border(img, x, y, x_direction, y_direction, show_img=show_img)
+            print("\n")
+            if distance is not False and distance < min_distance:
+                default_corner = corner
+                min_distance = distance
+
+        cv2.imshow("test", cv2.resize(show_img, None, fx=0.6, fy=0.6))
+        return default_corner
+
+    @staticmethod
+    def _search_white_border(img, x, y, x_direction, y_direction, limit=100, show_img=None):
+        starting_x = x
+        starting_y = y
+        for i in range(1, limit):
+            y += y_direction
+            x += x_direction
+            B1, _, _ = img[starting_y][x]
+            B2, _, _ = img[y][starting_x]
+            B3, _, _ = img[y][x]
+            if show_img is not None:
+                cv2.circle(show_img, (x, y), 1, (0, 255, 0), 10)
+                cv2.circle(show_img, (starting_x, y), 1, (0, 255, 0), 10)
+                cv2.circle(show_img, (x, starting_y), 1, (0, 255, 0), 10)
+            if B1 > 50 or B2 > 50 or B3 > 50:
+                return i
         return False
 
-    cell_neighbors(img, x, y, 30)
+    @staticmethod
+    def _find_edges(img):
+        """
+        Find image edges with Canny
+        :param img:
+        :return:
+        """
+        sigma = 0.4
+        # compute the median of the single channel pixel intensities
+        v = np.median(img)
+        # apply automatic Canny edge detection using the computed median
+        lower = int(max(0, (1.0 - sigma) * v))
+        upper = int(min(255, (1.0 + sigma) * v))
+        canny = cv2.Canny(img, lower, upper)
+        # canny = cv2.Canny(gray, 120, 140)
+        # canny = np.float32(canny)
 
+        return canny
 
-def cell_neighbors(img, x, y, d=1):
-    neighbours = []
-    test = img.copy()
-    for i in range(-d, d + 1):
-        pixels = []
-        for k in range(-d, d + 1):
-            pixel_B, pixel_G, pixel_R = img[y + i][x + k]
-            cv2.circle(test, (x + k, y + i), 1, (0, 0, 255), 1)
-            pixels.append([pixel_B, pixel_G, pixel_R])
-        neighbours.append(pixels)
+    @staticmethod
+    def _find_contours(img):
+        # thresh = cv2.threshold(canvas, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+        # Find contours and sort for largest contour
+        cnts, _ = cv2.findContours(img, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+        cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
 
-    neighbours = np.array(neighbours)
-    print(neighbours.shape)
-    print(neighbours, "\n")
-    cv2.imshow('test', cv2.resize(test, None, fx=0.6, fy=0.6))
-    cv2.waitKey(0)
-    return neighbours
+        perimeters = []
+        if len(cnts) > 0:
+            for c in cnts:
+                # Perform contour approximation
+                perimeters.append(cv2.arcLength(c, True))
+
+            # cv2.drawContours(canvas, [approx], -1, (0, 0, 255), 1, cv2.LINE_AA)
+        return cnts, np.array(perimeters)
