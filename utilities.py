@@ -314,11 +314,6 @@ def image_draw_circle(img, x, y, color=(0, 0, 255), radius=250, thickness=10):
     return cv2.circle(img, (x, y), radius=radius, color=color, thickness=thickness), x, y
 
 
-def printCoordinates(coordinates, scale):
-    x = round(coordinates[0]*scale)
-    y = round(coordinates[1]*scale)
-    return x, y
-
 def find_pose_from_homography(H, K, img, show_position=True):
     """
     Find R and T from homography
@@ -370,30 +365,58 @@ def find_pose_from_homography(H, K, img, show_position=True):
     return R, T
 
 
-def extract_pixel_intensity(img):
-    imgWidth, imgHeight = img.size
-    img = img.convert("RGBA")
-    imgdata = img.getdata()
+def bresenham_line(start, end):
+    """
+    Bresenham's Line Algorithm
+    Produces a list of tuples from start and end
+    :param start:
+    :param end:
+    :return:
+    """
+    # Setup initial conditions
+    x1, y1 = start
+    x2, y2 = end
+    dx = x2 - x1
+    dy = y2 - y1
 
-    x_pos = 0
-    y_pos = 1
-    pixel_value = []
-    x = []
-    y = []
-    for item in imgdata:
-        if (x_pos) == imgWidth:
-            x_pos = 1
-            y_pos += 1
-        else:
-            x_pos += 1
+    # Determine how steep the line is
+    is_steep = abs(dy) > abs(dx)
 
-        if item[3] != 0:
-            pixel_value.append(item[2])
-            x.append(x_pos)
-            y.append(y_pos)
+    # Rotate line
+    if is_steep:
+        x1, y1 = y1, x1
+        x2, y2 = y2, x2
 
-    pixel_value, x, y = zip(*sorted(zip(pixel_value, x, y), reverse=True))
-    return pixel_value, x, y
+    # Swap start and end points if necessary and store swap state
+    swapped = False
+    if x1 > x2:
+        x1, x2 = x2, x1
+        y1, y2 = y2, y1
+        swapped = True
+
+    # Recalculate differentials
+    dx = x2 - x1
+    dy = y2 - y1
+
+    # Calculate error
+    error = int(dx / 2.0)
+    ystep = 1 if y1 < y2 else -1
+
+    # Iterate over bounding box generating points between start and end
+    y = y1
+    points = []
+    for x in range(x1, x2 + 1):
+        coord = (y, x) if is_steep else (x, y)
+        points.append(coord)
+        error -= abs(dy)
+        if error < 0:
+            y += ystep
+            error += dx
+
+    # Reverse the list if the coordinates were swapped
+    if swapped:
+        points.reverse()
+    return points
 
 
 def interpolate_RBF(img):

@@ -215,15 +215,16 @@ def compute(video_name='coin1', sync=False):
         # if frames folders aren't found do sync_videos
         sync_videos(video_static_path, video_moving_path)
 
-    fm = FeatureMatcher(frames_moving_folder)
-
-    '''
+        '''
+    fm = FeatureMatcher(frames_static_folder, frames_moving_folder)
     fm.setThreshold(min_matches=5, lowe_threshold=0.9, ransac_threshold=5)
     show_images = dict(homography=True, camera_position=True, matches=True, histogram=False)
-    results = fm.extractFeatures(show_params=False, save_images=False)
+    results = fm.extractFeatures(show_params=show_images, save_images=False)
     '''
 
-    results = fm.extractFeatures(show_params=True)
+    fm = FeatureMatcher(frames_moving_folder)
+    fm.show_params(show_canny=False, show_rectangle_canvas=False, show_result=True, show_homography=False)
+    results = fm.extractFeatures()
 
     # write results on file
     file_path = "assets/results_{}.pickle".format(video_name)

@@ -7,14 +7,31 @@ import numpy as np
 
 
 class FeatureMatcher:
-    def __init__(self, frames_moving_folder_path):
+    def __init__(self, frames_moving_folder_path, show_params=False):
         """
         Constructor
         :param frames_moving_folder_path: path to the moving frames folder
         """
         self.frames_moving_folder_path = frames_moving_folder_path
+        if show_params is True:
+            self.show_params(show_canny=True, show_rectangle_canvas=True, show_result=True, show_homography=True)
+        else:
+            self.show_params(show_canny=False, show_rectangle_canvas=False, show_result=False, show_homography=False)
 
-    def extractFeatures(self, show_params=True):
+    def show_params(self, show_canny=True, show_rectangle_canvas=True, show_result=True, show_homography=True):
+        """
+        Set show parameters
+        :param show_canny: show canny detected edges
+        :param show_rectangle_canvas: show detected rectangle canvas
+        :param show_result: show result
+        :param show_homography: show homography
+        """
+        self._show_canny = show_canny
+        self._show_rectangle_canvas = show_rectangle_canvas
+        self._show_corners = show_result
+        self.show_homography = show_homography
+
+    def extractFeatures(self):
         """
         Feature matching and homography check
         :param show_params: if True show all results
@@ -67,24 +84,33 @@ class FeatureMatcher:
 
             if corners is not None and len(corners) > 0:
                 corners = np.int0(corners)
-                # find_default_corner(img, corners)
+                default_corner = self.find_default_corner(img, corners)
                 for corner in corners:
                     x, y = corner.ravel()
-                    cv2.circle(img, (x, y), 1, (0, 0, 255), 10)
-                    # check_neighbours(img, x, y)
-
-            if show_params is True:
-                cv2.imshow('canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
-                cv2.imshow("canvas", cv2.resize(canvas, None, fx=0.6, fy=0.6))
-                cv2.imshow('results', cv2.resize(img, None, fx=0.6, fy=0.6))
-                cv2.waitKey(0)
+                    cv2.circle(img, (x, y), 1, cst.COLOR_RED, 10)
+                cv2.circle(img, default_corner, 1, cst.COLOR_BLUE, 10)
             else:
                 print("No corners detected")
+
+            if self._show_canny is True:
+                cv2.imshow('Canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
+            if self._show_rectangle_canvas is True:
+                cv2.imshow("Rectangle Canvas", cv2.resize(canvas, None, fx=0.6, fy=0.6))
+            if self._show_corners is True:
+                cv2.imshow('Corners', cv2.resize(img, None, fx=0.6, fy=0.6))
+            cv2.waitKey(0)
 
         return dataset
 
     @staticmethod
     def find_default_corner(img, corners):
+        """
+        Find the default corner of the rectangle
+        The default corner is the nearest to the circle
+        :param img:
+        :param corners:
+        :return:
+        """
         # search x and y bounds
         max_x = 0
         min_x = img.shape[1]
@@ -94,56 +120,71 @@ class FeatureMatcher:
             x, y = corner.ravel()
             if x > max_x:
                 max_x = x
-            elif x < min_x:
+            if x < min_x:
                 min_x = x
             if y > max_y:
                 max_y = y
-            elif y < min_y:
+            if y < min_y:
                 min_y = y
 
         # search default point
         show_img = img.copy()
         default_corner = None
-        min_distance = 1000
+        min_distance = 100
         x_median = round(max_x - (max_x - min_x) / 2)
         y_median = round(max_y - (max_y - min_y) / 2)
         for corner in corners:
             x, y = corner.ravel()
-            if x < x_median:
-                x_direction = 1
-            else:
-                x_direction = -1
+            distance = FeatureMatcher._search_white_border(img,
+                                                           x_start=x,
+                                                           y_start=y,
+                                                           x_destination=x_median,
+                                                           y_destination=y_median,
+                                                           limit=min_distance,
+                                                           show_img=show_img)
 
-            if y < y_median:
-                y_direction = 1
-            else:
-                y_direction = -1
-
-            distance = FeatureMatcher._search_white_border(img, x, y, x_direction, y_direction, show_img=show_img)
-            print("\n")
             if distance is not False and distance < min_distance:
-                default_corner = corner
+                default_corner = (x, y)
                 min_distance = distance
 
-        cv2.imshow("test", cv2.resize(show_img, None, fx=0.6, fy=0.6))
+        # cv2.circle(show_img, (x_median, y_median), 1, cst.COLOR_BLUE, 5)
+        # cv2.imshow("test", cv2.resize(show_img, None, fx=0.6, fy=0.6))
         return default_corner
 
     @staticmethod
-    def _search_white_border(img, x, y, x_direction, y_direction, limit=100, show_img=None):
-        starting_x = x
-        starting_y = y
-        for i in range(1, limit):
-            y += y_direction
-            x += x_direction
-            B1, _, _ = img[starting_y][x]
-            B2, _, _ = img[y][starting_x]
-            B3, _, _ = img[y][x]
+    def _search_white_border(img, x_start, y_start, x_destination, y_destination, limit=1000, show_img=None):
+        """
+        Search for the white border aiming for center of the rectangle
+        :param img:
+        :param x_start:
+        :param y_start:
+        :param x_destination:
+        :param y_destination:
+        :param show_img:
+        :return:
+        """
+        # get line pixels points
+        points = ut.bresenham_line((x_start, y_start), (x_destination, y_destination))
+        step = 0
+        print("\n")
+        prev_B, prev_G, prev_R = img[points[0][1]][points[0][0]]
+        prev_B, prev_G, prev_R = int(prev_B), int(prev_G), int(prev_R)
+        for x, y in points:
+            step += 1
+            # stop if limit is reached
+            if step > limit:
+                return False
+
             if show_img is not None:
-                cv2.circle(show_img, (x, y), 1, (0, 255, 0), 10)
-                cv2.circle(show_img, (starting_x, y), 1, (0, 255, 0), 10)
-                cv2.circle(show_img, (x, starting_y), 1, (0, 255, 0), 10)
-            if B1 > 50 or B2 > 50 or B3 > 50:
-                return i
+                cv2.circle(show_img, (x, y), 1, cst.COLOR_GREEN, 10)
+
+            # check pixel intensity variation
+            B, G, R = img[y][x]
+            B, G, R = int(B), int(G), int(R)
+            diff_B, diff_G, diff_R = abs(B - prev_B), abs(G - prev_G), abs(R - prev_R)
+            if step > 10 and (diff_B > 20 or diff_G > 20 or diff_R > 20):
+                return step
+            prev_B, prev_G, prev_R = B, G, R
         return False
 
     @staticmethod
@@ -167,6 +208,12 @@ class FeatureMatcher:
 
     @staticmethod
     def _find_contours(img, max_only=False):
+        """
+        Find image contours
+        :param img:
+        :param max_only:
+        :return:
+        """
         # thresh = cv2.threshold(canvas, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
         # Find contours and sort for largest contour
         cnts, _ = cv2.findContours(img, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
