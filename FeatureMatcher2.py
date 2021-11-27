@@ -146,9 +146,8 @@ class FeatureMatcher:
             if distance is not False and distance < min_distance:
                 default_corner = (x, y)
                 min_distance = distance
-
-        # cv2.circle(show_img, (x_median, y_median), 1, cst.COLOR_BLUE, 5)
-        # cv2.imshow("test", cv2.resize(show_img, None, fx=0.6, fy=0.6))
+        #cv2.imshow("test", cv2.resize(show_img, None, fx=0.6, fy=0.6))
+        #cv2.circle(show_img, (x_median, y_median), 1, cst.COLOR_BLUE, 10)
         return default_corner
 
     @staticmethod
@@ -165,26 +164,21 @@ class FeatureMatcher:
         """
         # get line pixels points
         points = ut.bresenham_line((x_start, y_start), (x_destination, y_destination))
-        step = 0
-        print("\n")
-        prev_B, prev_G, prev_R = img[points[0][1]][points[0][0]]
-        prev_B, prev_G, prev_R = int(prev_B), int(prev_G), int(prev_R)
-        for x, y in points:
-            step += 1
+        for i in range(0, len(points)):
+            x_prev, y_prev = points[i-1]
+            x, y = points[i]
             # stop if limit is reached
-            if step > limit:
+            if i > limit:
                 return False
 
             if show_img is not None:
-                cv2.circle(show_img, (x, y), 1, cst.COLOR_GREEN, 10)
+                cv2.circle(show_img, (x, y), 1, cst.COLOR_GREEN, 2)
 
-            # check pixel intensity variation
-            B, G, R = img[y][x]
-            B, G, R = int(B), int(G), int(R)
-            diff_B, diff_G, diff_R = abs(B - prev_B), abs(G - prev_G), abs(R - prev_R)
-            if step > 10 and (diff_B > 20 or diff_G > 20 or diff_R > 20):
-                return step
-            prev_B, prev_G, prev_R = B, G, R
+            # check pixel intensity variation, i>10 to avoid pixels starting out of canvas
+            diff_B, diff_G, diff_R = ut.get_pixel_variation(img[y][x], img[y_prev][x_prev])
+            if i > 10 and (diff_B > 15 or diff_G > 15 or diff_R > 15):
+                # print("diff: ", diff_B, diff_G, diff_R)
+                return i
         return False
 
     @staticmethod

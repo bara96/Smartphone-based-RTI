@@ -365,6 +365,20 @@ def find_pose_from_homography(H, K, img, show_position=True):
     return R, T
 
 
+def get_pixel_variation(pixel1, pixel2):
+    """
+    Get color difference between two pixels
+    :param pixel1:
+    :param pixel2:
+    :return:
+    """
+    if pixel1 is None or pixel2 is None:
+        return 0, 0, 0
+    B1, G1, R1 = int(pixel1[0]), int(pixel1[1]), int(pixel1[2])
+    B2, G2, R2 = int(pixel2[0]), int(pixel2[1]), int(pixel2[2])
+    return abs(B1 - B2), abs(G1 - G2), abs(R1 - R2)
+
+
 def bresenham_line(start, end):
     """
     Bresenham's Line Algorithm
