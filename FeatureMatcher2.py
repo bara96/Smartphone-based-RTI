@@ -14,11 +14,11 @@ class FeatureMatcher:
         """
         self.frames_moving_folder_path = frames_moving_folder_path
         if show_params is True:
-            self.show_params(show_canny=True, show_rectangle_canvas=True, show_result=True, show_homography=True)
+            self.showParams(show_canny=True, show_rectangle_canvas=True, show_result=True, show_homography=True)
         else:
-            self.show_params(show_canny=False, show_rectangle_canvas=False, show_result=False, show_homography=False)
+            self.showParams(show_canny=False, show_rectangle_canvas=False, show_result=False, show_homography=False)
 
-    def show_params(self, show_canny=True, show_rectangle_canvas=True, show_result=True, show_homography=True):
+    def showParams(self, show_canny=True, show_rectangle_canvas=True, show_result=True, show_homography=True):
         """
         Set show parameters
         :param show_canny: show canny detected edges
@@ -62,15 +62,15 @@ class FeatureMatcher:
             # gray = ut.enchant_morphological(gray, [cv2.MORPH_OPEN, cv2.MORPH_CLOSE], iterations=1)
 
             # find image edges
-            canny = self._find_edges(gray)
+            canny = self._findEdges(gray)
 
             # refine all contours
-            cnts = self._find_contours(canny)
+            cnts = self._findContours(canny)
             cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
 
             # draw only the longest contour
             canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
-            cnts = self._find_contours(canny, True)
+            cnts = self._findContours(canny, True)
 
             cv2.drawContours(canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
 
@@ -84,7 +84,7 @@ class FeatureMatcher:
 
             if corners is not None and len(corners) > 0:
                 corners = np.int0(corners)
-                default_corner = self.find_default_corner(img, corners)
+                default_corner = self.findDefaultCorner(img, corners)
                 for corner in corners:
                     x, y = corner.ravel()
                     cv2.circle(img, (x, y), 1, cst.COLOR_RED, 10)
@@ -103,7 +103,7 @@ class FeatureMatcher:
         return dataset
 
     @staticmethod
-    def find_default_corner(img, corners):
+    def findDefaultCorner(img, corners):
         """
         Find the default corner of the rectangle
         The default corner is the nearest to the circle
@@ -135,13 +135,13 @@ class FeatureMatcher:
         y_median = round(max_y - (max_y - min_y) / 2)
         for corner in corners:
             x, y = corner.ravel()
-            distance = FeatureMatcher._search_white_border(img,
-                                                           x_start=x,
-                                                           y_start=y,
-                                                           x_destination=x_median,
-                                                           y_destination=y_median,
-                                                           limit=min_distance,
-                                                           show_img=show_img)
+            distance = FeatureMatcher._searchWhiteBorder(img,
+                                                         x_start=x,
+                                                         y_start=y,
+                                                         x_destination=x_median,
+                                                         y_destination=y_median,
+                                                         limit=min_distance,
+                                                         show_img=show_img)
 
             if distance is not False and distance < min_distance:
                 default_corner = (x, y)
@@ -151,7 +151,7 @@ class FeatureMatcher:
         return default_corner
 
     @staticmethod
-    def _search_white_border(img, x_start, y_start, x_destination, y_destination, limit=1000, show_img=None):
+    def _searchWhiteBorder(img, x_start, y_start, x_destination, y_destination, limit=1000, show_img=None):
         """
         Search for the white border aiming for center of the rectangle
         :param img:
@@ -182,7 +182,7 @@ class FeatureMatcher:
         return False
 
     @staticmethod
-    def _find_edges(img):
+    def _findEdges(img):
         """
         Find image edges with Canny
         :param img:
@@ -201,7 +201,7 @@ class FeatureMatcher:
         return canny
 
     @staticmethod
-    def _find_contours(img, max_only=False):
+    def _findContours(img, max_only=False):
         """
         Find image contours
         :param img:

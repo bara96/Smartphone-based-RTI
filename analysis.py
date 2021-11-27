@@ -223,7 +223,7 @@ def compute(video_name='coin1', sync=False):
     '''
 
     fm = FeatureMatcher(frames_moving_folder)
-    fm.show_params(show_canny=False, show_rectangle_canvas=False, show_result=True, show_homography=False)
+    fm.showParams(show_canny=False, show_rectangle_canvas=False, show_result=True, show_homography=False)
     results = fm.extractFeatures()
 
     # write results on file
