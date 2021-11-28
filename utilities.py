@@ -3,6 +3,14 @@
 import cv2
 import numpy as np
 import os
+import matplotlib.pyplot as plt
+
+
+def console_log(message, status='e'):
+    if status == 'e':
+        print("\033[91m{}\033[0m".format(message))
+    elif status == 'w':
+        print("\033[93m{}\033[0m".format(message))
 
 
 def plot_waves(sub_wave_matrix, wave_matrix, x_corr):
@@ -12,7 +20,6 @@ def plot_waves(sub_wave_matrix, wave_matrix, x_corr):
     :param wave_matrix:
     :param x_corr:
     """
-    import matplotlib.pyplot as plt
 
     plt.plot(sub_wave_matrix)
     plt.title("Sub-Wave Signal")
@@ -231,22 +238,95 @@ def enchant_brightness_and_contrast(image, clip_hist_percent=1):
 
 
 def write_on_file(data, filename):
+    """
+    Write data on pickle file
+    :param data: Object to save
+    :param filename: filename of the pickle file to save
+    """
     import pickle
     with open(filename, "wb") as f:
         pickle.dump(data, f)
 
 
 def read_from_file(filename):
+    """
+    Read data from pickle file
+    :param filename: filename of the pickle file to read
+    :return:
+    """
     import pickle
     with open(filename, 'rb') as f:
         results = pickle.load(f)
     return results
 
 
-def find_pose_from_homography(H, K):
+def image_blur(image, iterations=1):
     """
-    H is the homography matrix
-    K is the camera calibration matrix
+    Blur image with GaussianBlur
+    :param image: Opencv image
+    :param iterations: n° of times to apply GaussianBlur
+    :return:
+    """
+    for k in range(0, iterations):
+        image = cv2.GaussianBlur(image, (5, 5), 0)
+    return image
+
+
+def image_fill(img, enlarge_percentage=1.5):
+    """
+    Enlarge an image with black
+    :param img: OpenCv image
+    :param enlarge_percentage: % of image to enlarge
+    :return:
+    """
+    # Getting the bigger side of the image
+    s = max(img.shape[0:2])
+    s = round(s * enlarge_percentage)
+
+    # Creating a dark square with NUMPY
+    img_new = np.zeros((s, s, 3), np.uint8)
+
+    # Getting the centering position
+    ax, ay = (s - img.shape[1]) // 2, (s - img.shape[0]) // 2
+
+    # Pasting the 'image' in a centering position
+    img_new[ay:img.shape[0] + ay, ax:ax + img.shape[1]] = img
+
+    return img_new
+
+
+def image_draw_circle(img, x, y, color=(0, 0, 255), radius=250, thickness=10):
+    """
+    Draw a point into an image
+    :param thickness: circle line thickness
+    :param radius: circle radius
+    :param img: OpenCv image
+    :param x: real world coordinate
+    :param y: real world coordinate
+    :param color: circle color
+    :return:
+    """
+    max_y, max_x, _ = img.shape
+    x, y = int(x), int(y)
+    if x > max_x:
+        x = max_x - 1
+    if x < 0:
+        x = 1
+
+    if y > max_y:
+        y = max_y - 1
+    if y < 0:
+        y = 1
+
+    return cv2.circle(img, (x, y), radius=radius, color=color, thickness=thickness), x, y
+
+
+def find_pose_from_homography(H, K, img, show_position=True):
+    """
+    Find R and T from homography
+    :param H: is the homography matrix
+    :param K: is the camera calibration matrix
+    :return:
     T is translation
     R is rotation
     """
@@ -264,29 +344,124 @@ def find_pose_from_homography(H, K):
     R = np.array([[r1], [r2], [r3]])
     R = np.reshape(R, (3, 3))
 
+    # debug code
+    vector = -(R.transpose() * T)
+
+    x, y = vector[0][0], vector[0][1]  # red
+    x1, y1 = vector[1][0], vector[1][1]  # yellow
+    x2, y2 = vector[2][0], vector[2][1]  # purple
+
+    # x,y,z = np.dot(-np.transpose(R),T)
+
+    train_img_new = img.copy()
+    x_scale, y_scale = 0.4, 0.4
+
+    train_img_new, x, y = image_draw_circle(train_img_new, x, y, (0, 0, 255))
+    train_img_new, x1, y1 = image_draw_circle(train_img_new, x1, y1, (0, 255, 255))
+    train_img_new, x2, y2 = image_draw_circle(train_img_new, x2, y2, (255, 0, 255))
+    train_img_new = cv2.resize(train_img_new, None, fx=x_scale, fy=y_scale)
+
+    # print("x: ", x, "y: ", y)
+    print("x: ", round(x * x_scale), "y: ", round(y * y_scale))  # scaled values
+    print("x1: ", round(x1 * x_scale), "y1: ", round(y1 * y_scale))  # scaled values
+    print("x2: ", round(x2 * x_scale), "y2: ", round(y2 * y_scale))  # scaled values
+
+    if show_position:
+        cv2.imshow("Camera Position", train_img_new)
+
     return R, T
 
 
-def draw_axis(img, R, t, K):
-    # unit is mm
-    rotV, _ = cv2.Rodrigues(R)
-    points = np.float32([[100, 0, 0], [0, 100, 0], [0, 0, 100], [0, 0, 0]]).reshape(-1, 3)
-    axisPoints, _ = cv2.projectPoints(points, rotV, t, K, (0, 0, 0, 0))
-    pt1 = tuple(axisPoints[3].ravel())
-    pt1 = (int(pt1[0]), int(pt1[1]))
-    pt2 = tuple(axisPoints[0].ravel())
-    pt2 = (int(pt2[0]), int(pt2[1]))
-    img = cv2.line(img, pt1, pt2, (255,0,0), 3)
+def get_pixel_variation(pixel1, pixel2):
+    """
+    Get color difference between two pixels
+    :param pixel1:
+    :param pixel2:
+    :return:
+    """
+    if pixel1 is None or pixel2 is None:
+        return 0, 0, 0
+    B1, G1, R1 = int(pixel1[0]), int(pixel1[1]), int(pixel1[2])
+    B2, G2, R2 = int(pixel2[0]), int(pixel2[1]), int(pixel2[2])
+    return abs(B1 - B2), abs(G1 - G2), abs(R1 - R2)
 
-    pt1 = tuple(axisPoints[3].ravel())
-    pt1 = (int(pt1[0]), int(pt1[1]))
-    pt2 = tuple(axisPoints[1].ravel())
-    pt2 = (int(pt2[0]), int(pt2[1]))
-    img = cv2.line(img, pt1, pt2, (0,255,0), 3)
 
-    pt1 = tuple(axisPoints[3].ravel())
-    pt1 = (int(pt1[0]), int(pt1[1]))
-    pt2 = tuple(axisPoints[2].ravel())
-    pt2 = (int(pt2[0]), int(pt2[1]))
-    img = cv2.line(img, pt1, pt2, (0,0,255), 3)
-    return img
+def bresenham_line(start, end):
+    """
+    Bresenham's Line Algorithm
+    Produces a list of tuples from start and end
+    :param start:
+    :param end:
+    :return:
+    """
+    # Setup initial conditions
+    x1, y1 = start
+    x2, y2 = end
+    dx = x2 - x1
+    dy = y2 - y1
+
+    # Determine how steep the line is
+    is_steep = abs(dy) > abs(dx)
+
+    # Rotate line
+    if is_steep:
+        x1, y1 = y1, x1
+        x2, y2 = y2, x2
+
+    # Swap start and end points if necessary and store swap state
+    swapped = False
+    if x1 > x2:
+        x1, x2 = x2, x1
+        y1, y2 = y2, y1
+        swapped = True
+
+    # Recalculate differentials
+    dx = x2 - x1
+    dy = y2 - y1
+
+    # Calculate error
+    error = int(dx / 2.0)
+    ystep = 1 if y1 < y2 else -1
+
+    # Iterate over bounding box generating points between start and end
+    y = y1
+    points = []
+    for x in range(x1, x2 + 1):
+        coord = (y, x) if is_steep else (x, y)
+        points.append(coord)
+        error -= abs(dy)
+        if error < 0:
+            y += ystep
+            error += dx
+
+    # Reverse the list if the coordinates were swapped
+    if swapped:
+        points.reverse()
+    return points
+
+
+def euclidean_distance(x1, y1, x2, y2):
+    import math
+    """
+    Calculate euclidean distance between given points
+    :param x1: 
+    :param y1: 
+    :param x2: 
+    :param y2: 
+    :return: 
+    """
+    dist = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    return float(dist)
+
+
+def interpolate_RBF(img):
+    from PIL import Image
+    from scipy.interpolate import Rbf
+
+    img_data = np.asarray(img)
+
+    # img = Rbf(img_data[:, 0], img_data[:, 1], img_data[:, 2])
+    # val_ar = rbfi(img_data[:, 0], img_data[:, 1], img_data[:, 2])
+
+    img_pil = Image.fromarray(np.uint8(img_data)).convert('RGB')
+    img_pil.show()

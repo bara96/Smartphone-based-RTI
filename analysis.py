@@ -4,9 +4,6 @@ import shutil
 import os
 import cv2
 import math
-import json
-import numpy as np
-from matplotlib import pyplot as plt
 import utilities as ut
 from moviepy.editor import VideoFileClip
 from FeatureMatcher import FeatureMatcher
@@ -72,7 +69,7 @@ def generate_video_default_frame(video_path, calibration_file_path, file_name='d
     lower_brightness = 1
     for i in range(0, 90):
         ret, frame = video.read()
-        if ret == False:
+        if not ret:
             raise Exception('Null frame')
 
         frame_new = ut.undistort_image(frame, matrix, distortion)
@@ -129,7 +126,7 @@ def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frame
     offset *= 30  # 30 fps * offset
     frame_n = offset  # starting from offset (for video sync)
     frame_skip = math.trunc((tot_frames - offset) / n_frames)  # skip threshold between frames to obtain n_frames
-    print('Generating frames..')
+    print('Generating frames for {}..'.format(dir_name))
     for i in range(0, n_frames):
         frame_n += frame_skip
         video.set(cv2.CAP_PROP_POS_FRAMES, frame_n)  # skip frames
@@ -208,18 +205,24 @@ def compute(video_name='coin1', sync=False):
     video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(video_name)
     frames_static_folder = cst.FRAMES_FOLDER_PATH + '/static_{}'.format(video_name)
     frames_moving_folder = cst.FRAMES_FOLDER_PATH + '/moving_{}'.format(video_name)
+    n_frames = 200
 
     if sync:
-        sync_videos(video_static_path, video_moving_path)
+        sync_videos(video_static_path, video_moving_path, n_frames=n_frames)
     elif not os.path.isdir(frames_static_folder) or not os.path.isdir(frames_moving_folder):
         # if frames folders aren't found do sync_videos
-        sync_videos(video_static_path, video_moving_path)
+        sync_videos(video_static_path, video_moving_path, n_frames=n_frames)
 
-    fm = FeatureMatcher(frames_static_folder, frames_moving_folder,
-                        detector_algorithm=FeatureMatcher.DETECTOR_ALGORITHM_ORB,
-                        matching_algorithm=FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE)
+    '''
+    fm = FeatureMatcher(frames_static_folder, frames_moving_folder)
+    fm.setThreshold(min_matches=5, lowe_threshold=0.9, ransac_threshold=5)
+    show_images = dict(homography=True, camera_position=True, matches=True, histogram=False)
+    results = fm.extractFeatures(show_params=show_images, save_images=False)
+    '''
 
-    results = fm.extract_features(show_images=True, save_images=False, plot_histogram=False)
+    fm = FeatureMatcher(frames_moving_folder)
+    fm.showParams(show_canny=False, show_rectangle_canvas=True, show_result=True, show_homography=False)
+    results = fm.extractFeatures()
 
     # write results on file
     file_path = "assets/results_{}.pickle".format(video_name)
