@@ -46,7 +46,7 @@ class FeatureMatcher:
         tot_frames = len(list_moving)
 
         dataset = []
-        previous_lambda_corner = None
+        previous_second_corner = None
         for i in range(0, tot_frames):
             # Read the query image
             filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
@@ -96,7 +96,7 @@ class FeatureMatcher:
                 continue
 
             distances_default = []
-            distances_lambda = []
+            distances_second = []
             for c in range(0, len(corners)):
                 x, y = corners[c].ravel()
                 # calculate for each corner the distance between default corner
@@ -106,18 +106,18 @@ class FeatureMatcher:
                     cv2.putText(img, str(distance_default), (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, cst.COLOR_RED,
                                 2, cv2.LINE_AA)
                     distances_default.append(dict(index=c, point=(x, y), distance=distance_default))
-                    # calculate the distance between points and previous lambda point
-                    if previous_lambda_corner is not None:
-                        distance_lambda = ut.euclidean_distance(x, y,
-                                                                previous_lambda_corner[0],
-                                                                previous_lambda_corner[1])
-                        distances_lambda.append(dict(index=c, point=(x, y), distance=distance_lambda))
+                    # calculate the distance between points and previous second-corner point
+                    if previous_second_corner is not None:
+                        distance_second = ut.euclidean_distance(x, y,
+                                                                previous_second_corner[0],
+                                                                previous_second_corner[1])
+                        distances_second.append(dict(index=c, point=(x, y), distance=distance_second))
 
-            # search for lambda corner
-            if previous_lambda_corner is not None:
-                cv2.circle(img, previous_lambda_corner, 1, cst.COLOR_PURPLE, 10)
-            lambda_corner = self.findLambdaCorner(img, distances_default, distances_lambda)
-            previous_lambda_corner = lambda_corner
+            # search for second-corner
+            if previous_second_corner is not None:
+                cv2.circle(img, previous_second_corner, 1, cst.COLOR_PURPLE, 10)
+            second_corner = self.findSecondCorner(img, distances_default, distances_second)
+            previous_second_corner = second_corner
 
             if self._show_canny is True:
                 cv2.imshow('Canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
@@ -212,42 +212,42 @@ class FeatureMatcher:
         return False
 
     @staticmethod
-    def findLambdaCorner(img, distances_default, distances_lambda, show_point=True):
+    def findSecondCorner(img, distances_default, distances_second, show_point=True):
         """
-        Calculate lambda point
-        We will define a 'lambda' corner as a corner near to the default, and we will track it between frames
+        Calculate second-corner point
+        We will define a 'second' corner as a corner near to the default, and we will track it between frames
         :param img: OpenCv image
         :param distances_default: distances from the default_corner and the corners
-        :param distances_lambda: distances from the previous_lambda and the corners
+        :param distances_second: distances from the previous_second and the corners
         :param show_point: if True, show the point on image
         :return:
         """
 
         distances_default = sorted(distances_default, key=lambda item: item['distance'])
-        lambda_corner = distances_default[0].get('point')
+        second_corner = distances_default[0].get('point')
 
-        if len(distances_lambda) <= 0:
+        if len(distances_second) <= 0:
             if show_point:
-                cv2.circle(img, lambda_corner, 1, cst.COLOR_GREEN, 10)
-            return lambda_corner
+                cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 10)
+            return second_corner
 
-        # the one nearest to the previous_lambda and that is not the farthest from default is the current lambda
-        distances_lambda = sorted(distances_lambda, key=lambda item: item['distance'])
+        # the one nearest to the previous_second and that is not the farthest from default is the current second-corner
+        distances_second = sorted(distances_second, key=lambda item: item['distance'])
 
-        lambda_corner = distances_lambda[0].get('point')
+        second_corner = distances_second[0].get('point')
         '''
         k = 0
         found = False
-        while k < len(distances_lambda) or found is False:
-            corner_idx = distances_lambda[k].get('index')
+        while k < len(distances_second) or found is False:
+            corner_idx = distances_second[k].get('index')
             if distances_default[-1].get('index') != corner_idx:
-                lambda_corner = distances_lambda[k].get('point')
+                second_corner = distances_second[k].get('point')
                 found = True
             k += 1
         '''
         if show_point:
-            cv2.circle(img, lambda_corner, 1, cst.COLOR_GREEN, 10)
-        return lambda_corner
+            cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 10)
+        return second_corner
 
     @staticmethod
     def _findEdges(img):
