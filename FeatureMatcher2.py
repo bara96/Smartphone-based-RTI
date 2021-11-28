@@ -206,7 +206,7 @@ class FeatureMatcher:
 
             # check pixel intensity variation, i>10 to avoid pixels starting out of canvas
             diff_B, diff_G, diff_R = ut.get_pixel_variation(img[y][x], img[y_prev][x_prev])
-            if i > 10 and (diff_B > 15 or diff_G > 15 or diff_R > 15):
+            if i > 15 and (diff_B > 15 or diff_G > 15 or diff_R > 15):
                 # print("diff: ", diff_B, diff_G, diff_R)
                 return i
         return False
@@ -278,7 +278,7 @@ class FeatureMatcher:
         """
         # thresh = cv2.threshold(canvas, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
         # Find contours and sort for largest contour
-        cnts, _ = cv2.findContours(img, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+        cnts, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
 
         max_perimeter = 0
