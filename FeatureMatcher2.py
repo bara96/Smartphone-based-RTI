@@ -46,12 +46,13 @@ class FeatureMatcher:
         tot_frames = len(list_moving)
 
         dataset = []
-        for i in range(0, tot_frames):
+        previous_lambda_corner = None
+        for i in range(50, tot_frames):
             # Read the query image
             filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
             print("Frame n° ", i)
             img = cv2.imread(filename)
-            h, w, _ = img.shape
+            height, width, _ = img.shape
 
             ''' Image Enchanting Phase '''
             gray = ut.enchant_brightness_and_contrast(img)
@@ -68,34 +69,74 @@ class FeatureMatcher:
             cnts = self._findContours(canny)
             cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
 
-            # draw only the longest contour
-            canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
+            # draw only the longest contour (bigger rectangle)
+            rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
             cnts = self._findContours(canny, True)
 
-            cv2.drawContours(canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
+            cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
 
             # find corners
-            corners = cv2.goodFeaturesToTrack(image=canvas,
+            corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
                                               maxCorners=4,
                                               qualityLevel=0.1,
                                               minDistance=30,
                                               blockSize=20,
                                               useHarrisDetector=False)
 
-            if corners is not None and len(corners) > 0:
+            if corners is not None and len(corners) == 4:
                 corners = np.int0(corners)
+                # find the default corner
                 default_corner = self.findDefaultCorner(img, corners)
-                for corner in corners:
-                    x, y = corner.ravel()
-                    cv2.circle(img, (x, y), 1, cst.COLOR_RED, 10)
-                cv2.circle(img, default_corner, 1, cst.COLOR_BLUE, 10)
+                distances_default = []
+                distances_lambda = []
+                for c in range(0, len(corners)):
+                    x, y = corners[c].ravel()
+                    # calculate for each corner the distance between default corner
+                    distance_default = ut.euclidean_distance(x, y, default_corner[0], default_corner[1])
+                    if distance_default > 0:
+                        cv2.circle(img, (x, y), 1, cst.COLOR_RED, 10)
+                        distances_default.append(dict(index=c, point=(x, y), distance=distance_default))
+                        # calculate the distance between points and previous lambda point
+                        if previous_lambda_corner is not None:
+                            distance_lambda = ut.euclidean_distance(x, y,
+                                                                    previous_lambda_corner[0],
+                                                                    previous_lambda_corner[1])
+                            distances_lambda.append(dict(index=c, point=(x, y), distance=distance_lambda))
+
+                # calculate lambda point
+                # we will define a 'lambda' corner as a corner near to the default, and we will track it
+                distances_default = sorted(distances_default, key=lambda item: item['distance'])
+                if previous_lambda_corner is None or len(distances_lambda) <= 0:
+                    # if there is no previous lambda (first frame) assign one near the default
+                    lambda_corner = distances_default[0].get('point')
+                else:
+                    cv2.circle(img, previous_lambda_corner, 1, cst.COLOR_PURPLE, 10)
+                    # if there is a previous lambda corner:
+                    # the one nearest to the previous lambda
+                    # and that is not the farthest from default is the current lambda
+                    distances_lambda = sorted(distances_lambda, key=lambda item: item['distance'])
+
+                    found = False
+                    k = 0
+                    while k < len(distances_lambda) and found is False:
+                        corner_idx = distances_lambda[k].get('index')
+                        if distances_default[-1].get('index') != corner_idx:
+                            lambda_corner = corners[corner_idx].ravel()
+                            found = True
+                        k += 1
+                    if found is False:
+                        lambda_corner = distances_default[0].get('point')
+
+                previous_lambda_corner = lambda_corner
+                cv2.circle(img, lambda_corner, 1, cst.COLOR_GREEN, 10)
+
             else:
                 print("No corners detected")
 
             if self._show_canny is True:
                 cv2.imshow('Canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
             if self._show_rectangle_canvas is True:
-                cv2.imshow("Rectangle Canvas", cv2.resize(canvas, None, fx=0.6, fy=0.6))
+                cv2.imshow("Rectangle Canvas", cv2.resize(rectangle_canvas, None, fx=0.6, fy=0.6))
             if self._show_corners is True:
                 cv2.imshow('Corners', cv2.resize(img, None, fx=0.6, fy=0.6))
             cv2.waitKey(0)
@@ -103,10 +144,11 @@ class FeatureMatcher:
         return dataset
 
     @staticmethod
-    def findDefaultCorner(img, corners):
+    def findDefaultCorner(img, corners, show_point=True):
         """
         Find the default corner of the rectangle
         The default corner is the nearest to the circle
+        :param show_point:
         :param img:
         :param corners:
         :return:
@@ -146,8 +188,10 @@ class FeatureMatcher:
             if distance is not False and distance < min_distance:
                 default_corner = (x, y)
                 min_distance = distance
-        #cv2.imshow("test", cv2.resize(show_img, None, fx=0.6, fy=0.6))
-        #cv2.circle(show_img, (x_median, y_median), 1, cst.COLOR_BLUE, 10)
+
+        if show_point:
+            cv2.circle(img, default_corner, 1, cst.COLOR_BLUE, 10)
+
         return default_corner
 
     @staticmethod

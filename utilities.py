@@ -433,6 +433,20 @@ def bresenham_line(start, end):
     return points
 
 
+def euclidean_distance(x1, y1, x2, y2):
+    import math
+    """
+    Calculate euclidean distance between given points
+    :param x1: 
+    :param y1: 
+    :param x2: 
+    :param y2: 
+    :return: 
+    """
+    dist = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    return float(dist)
+
+
 def interpolate_RBF(img):
     from PIL import Image
     from scipy.interpolate import Rbf
