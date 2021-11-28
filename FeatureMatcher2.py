@@ -47,7 +47,7 @@ class FeatureMatcher:
 
         dataset = []
         previous_lambda_corner = None
-        for i in range(110, tot_frames):
+        for i in range(0, tot_frames):
             # Read the query image
             filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
             print("Frame n° ", i)
