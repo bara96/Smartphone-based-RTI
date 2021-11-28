@@ -6,6 +6,13 @@ import os
 import matplotlib.pyplot as plt
 
 
+def console_log(message, status='e'):
+    if status == 'e':
+        print("\033[91m{}\033[0m".format(message))
+    elif status == 'w':
+        print("\033[93m{}\033[0m".format(message))
+
+
 def plot_waves(sub_wave_matrix, wave_matrix, x_corr):
     """
     Plot signal waves
