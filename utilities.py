@@ -1,12 +1,25 @@
 # Import required modules
+# Utils misc functions
 import cv2
 import numpy as np
-import constants as cst
+import os
+import matplotlib.pyplot as plt
 
 
-# plot signal waves
+def console_log(message, status='e'):
+    if status == 'e':
+        print("\033[91m{}\033[0m".format(message))
+    elif status == 'w':
+        print("\033[93m{}\033[0m".format(message))
+
+
 def plot_waves(sub_wave_matrix, wave_matrix, x_corr):
-    import matplotlib.pyplot as plt
+    """
+    Plot signal waves
+    :param sub_wave_matrix:
+    :param wave_matrix:
+    :param x_corr:
+    """
 
     plt.plot(sub_wave_matrix)
     plt.title("Sub-Wave Signal")
@@ -22,8 +35,14 @@ def plot_waves(sub_wave_matrix, wave_matrix, x_corr):
     plt.show()
 
 
-# get audio cross correlation
 def find_audio_correlation(sub_wave_matrix, wave_matrix, plot=False):
+    """
+    Get audio cross correlation
+    :param sub_wave_matrix:
+    :param wave_matrix:
+    :param plot: if True plot the results
+    :return:
+    """
     from scipy import signal
 
     sub_wave_matrix = sub_wave_matrix.flatten()
@@ -38,8 +57,12 @@ def find_audio_correlation(sub_wave_matrix, wave_matrix, plot=False):
     return np.argmin(x_corr)
 
 
-# convert audio
 def stereo_to_mono_wave(path):
+    """
+    Convert audio
+    :param path:
+    :return:
+    """
     import soundfile as sf
 
     wave, fs = sf.read(path, dtype='float32')
@@ -47,11 +70,30 @@ def stereo_to_mono_wave(path):
     return fs, wave
 
 
-# undistort the image
-# image: cv2 image Object
-# matrix: intrinsics matrix
-# distortion: intrinsics distortion
+def get_camera_intrinsics(calibration_file_path):
+    """
+    Get camera intrinsic matrix and distorsion
+    :param calibration_file_path: file path to intrinsics file
+    """
+    if not os.path.isfile(calibration_file_path):
+        raise Exception('intrinsics file not found!')
+    else:
+        # Read intrinsics to file
+        Kfile = cv2.FileStorage(calibration_file_path, cv2.FILE_STORAGE_READ)
+        matrix = Kfile.getNode("K").mat()
+        distortion = Kfile.getNode("distortion").mat()
+
+    return matrix, distortion
+
+
 def undistort_image(image, matrix, distortion):
+    """
+    Un-distort the image
+    :param image: OpenCv image
+    :param matrix: intrinsics matrix
+    :param distortion: intrinsics distortion
+    :return:
+    """
     # Compute the undistorted image
     h, w = image.shape[:2]
     # Compute the newcamera intrinsic matrix
@@ -65,16 +107,24 @@ def undistort_image(image, matrix, distortion):
     return image_new
 
 
-# return total n° of frames of a video
 def get_video_total_frames(video_path):
+    """
+    Return total n° of frames of a video
+    :param video_path: path to the video
+    :return:
+    """
     video = cv2.VideoCapture(video_path)
     tot_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))  # total number of frames
     video.release()
     return tot_frames
 
 
-# convert svg to png
 def svg_to_png(image_path):
+    """
+    Convert svg to png
+    :param image_path: path to the image
+    :return:
+    """
     from svglib.svglib import svg2rlg
     from reportlab.graphics import renderPDF, renderPM
 
@@ -86,8 +136,14 @@ def svg_to_png(image_path):
     return image_path_new
 
 
-# enchantment of an image with morphological operations
-def image_enchantment(image, params, iterations=1):
+def enchant_morphological(image, params, iterations=1):
+    """
+    Enchantment of an image with morphological operations
+    :param image: OpenCv image
+    :param params: morphological operations to apply
+    :param iterations: iterations to apply
+    :return:
+    """
     kernel = np.ones((5, 5), np.uint8)
 
     for type in params:
@@ -117,71 +173,12 @@ def image_enchantment(image, params, iterations=1):
     return image
 
 
-def homography_check(train_image, homography_image):
-    detector_alg = cv2.ORB_create()
-    matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-
-    train_img_bw = cv2.cvtColor(train_image, cv2.COLOR_BGR2GRAY)
-    query_img_bw = cv2.cvtColor(homography_image, cv2.COLOR_BGR2GRAY)
-
-    queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
-    trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
-    matches = matcher.knnMatch(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors, k=2)
-    # Apply Lowe ratio test
-    good_matches = []
-    for m, n in matches:
-        if m.distance < 0.75 * n.distance:
-            good_matches.append(m)
-
-    if len(good_matches) < 10:
-        return False
-    return True
-
-
-# find homography matrix and do perspective transform, train => query
-def homography_transformation(query_image, query_features, train_image, train_features, matches,
-                              transform_train=True, show_images=True, save_as=None):
-    import os
-
-    kp_query_image, desc_query_image = query_features[0], query_features[1]
-    kp_train_image, desc_train_image = train_features[0], train_features[1]
-
-    query_pts = np.float32([kp_query_image[m.queryIdx]
-                           .pt for m in matches]).reshape(-1, 1, 2)
-    train_pts = np.float32([kp_train_image[m.trainIdx]
-                           .pt for m in matches]).reshape(-1, 1, 2)
-
-    if transform_train:
-        # transform train into query
-        matrix, mask = cv2.findHomography(train_pts, query_pts, cv2.RANSAC, 5.0)
-        matchesMask = mask.ravel().tolist()
-
-        # Warp query image to train image based on homography
-        im_out = cv2.warpPerspective(train_image, matrix, (query_image.shape[1], query_image.shape[0]))
-    else:
-        # transform query into train
-        matrix, mask = cv2.findHomography(query_pts, train_pts, cv2.RANSAC, 5.0)
-        matchesMask = mask.ravel().tolist()
-
-        # Warp query image to train image based on homography
-        im_out = cv2.warpPerspective(query_image, matrix, (train_image.shape[1], train_image.shape[0]))
-
-    if show_images:
-        cv2.imshow("Transformed", im_out)
-        # cv2.waitKey(0)
-    if save_as is not None:
-        if not os.path.isdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH):
-            os.mkdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH)
-        cv2.imwrite(cst.TRANSFORMATION_RESULTS_FOLDER_PATH + '/' + save_as, im_out)
-
-    if homography_check(train_image, im_out):
-        return matrix
-    else:
-        return None
-
-
-# Contrast Limited Adaptive Histogram Equalization
-def CLAHE(image):
+def enchant_CLAHE(image):
+    """
+    Contrast Limited Adaptive Histogram Equalization
+    :param image: OpenCv image
+    :return:
+    """
     # -----Converting image to LAB Color model-----------------------------------
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
 
@@ -199,8 +196,13 @@ def CLAHE(image):
     return cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
 
 
-# Automatic brightness and contrast optimization with optional histogram clipping
 def enchant_brightness_and_contrast(image, clip_hist_percent=1):
+    """
+    Automatic brightness and contrast optimization with optional histogram clipping
+    :param image: OpenCv image
+    :param clip_hist_percent:
+    :return:
+    """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Calculate grayscale histogram
@@ -233,3 +235,233 @@ def enchant_brightness_and_contrast(image, clip_hist_percent=1):
     beta = -minimum_gray * alpha
 
     return cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+
+
+def write_on_file(data, filename):
+    """
+    Write data on pickle file
+    :param data: Object to save
+    :param filename: filename of the pickle file to save
+    """
+    import pickle
+    with open(filename, "wb") as f:
+        pickle.dump(data, f)
+
+
+def read_from_file(filename):
+    """
+    Read data from pickle file
+    :param filename: filename of the pickle file to read
+    :return:
+    """
+    import pickle
+    with open(filename, 'rb') as f:
+        results = pickle.load(f)
+    return results
+
+
+def image_blur(image, iterations=1):
+    """
+    Blur image with GaussianBlur
+    :param image: Opencv image
+    :param iterations: n° of times to apply GaussianBlur
+    :return:
+    """
+    for k in range(0, iterations):
+        image = cv2.GaussianBlur(image, (5, 5), 0)
+    return image
+
+
+def image_fill(img, enlarge_percentage=1.5):
+    """
+    Enlarge an image with black
+    :param img: OpenCv image
+    :param enlarge_percentage: % of image to enlarge
+    :return:
+    """
+    # Getting the bigger side of the image
+    s = max(img.shape[0:2])
+    s = round(s * enlarge_percentage)
+
+    # Creating a dark square with NUMPY
+    img_new = np.zeros((s, s, 3), np.uint8)
+
+    # Getting the centering position
+    ax, ay = (s - img.shape[1]) // 2, (s - img.shape[0]) // 2
+
+    # Pasting the 'image' in a centering position
+    img_new[ay:img.shape[0] + ay, ax:ax + img.shape[1]] = img
+
+    return img_new
+
+
+def image_draw_circle(img, x, y, color=(0, 0, 255), radius=250, thickness=10):
+    """
+    Draw a point into an image
+    :param thickness: circle line thickness
+    :param radius: circle radius
+    :param img: OpenCv image
+    :param x: real world coordinate
+    :param y: real world coordinate
+    :param color: circle color
+    :return:
+    """
+    max_y, max_x, _ = img.shape
+    x, y = int(x), int(y)
+    if x > max_x:
+        x = max_x - 1
+    if x < 0:
+        x = 1
+
+    if y > max_y:
+        y = max_y - 1
+    if y < 0:
+        y = 1
+
+    return cv2.circle(img, (x, y), radius=radius, color=color, thickness=thickness), x, y
+
+
+def find_pose_from_homography(H, K, img, show_position=True):
+    """
+    Find R and T from homography
+    :param H: is the homography matrix
+    :param K: is the camera calibration matrix
+    :return:
+    T is translation
+    R is rotation
+    """
+
+    H = H.T
+    h1 = H[0]
+    h2 = H[1]
+    h3 = H[2]
+    K_inv = np.linalg.inv(K)
+    L = 1 / np.linalg.norm(np.dot(K_inv, h1))
+    r1 = L * np.dot(K_inv, h1)
+    r2 = L * np.dot(K_inv, h2)
+    r3 = np.cross(r1, r2)
+    T = L * (K_inv @ h3.reshape(3, 1))
+    R = np.array([[r1], [r2], [r3]])
+    R = np.reshape(R, (3, 3))
+
+    # debug code
+    vector = -(R.transpose() * T)
+
+    x, y = vector[0][0], vector[0][1]  # red
+    x1, y1 = vector[1][0], vector[1][1]  # yellow
+    x2, y2 = vector[2][0], vector[2][1]  # purple
+
+    # x,y,z = np.dot(-np.transpose(R),T)
+
+    train_img_new = img.copy()
+    x_scale, y_scale = 0.4, 0.4
+
+    train_img_new, x, y = image_draw_circle(train_img_new, x, y, (0, 0, 255))
+    train_img_new, x1, y1 = image_draw_circle(train_img_new, x1, y1, (0, 255, 255))
+    train_img_new, x2, y2 = image_draw_circle(train_img_new, x2, y2, (255, 0, 255))
+    train_img_new = cv2.resize(train_img_new, None, fx=x_scale, fy=y_scale)
+
+    # print("x: ", x, "y: ", y)
+    print("x: ", round(x * x_scale), "y: ", round(y * y_scale))  # scaled values
+    print("x1: ", round(x1 * x_scale), "y1: ", round(y1 * y_scale))  # scaled values
+    print("x2: ", round(x2 * x_scale), "y2: ", round(y2 * y_scale))  # scaled values
+
+    if show_position:
+        cv2.imshow("Camera Position", train_img_new)
+
+    return R, T
+
+
+def get_pixel_variation(pixel1, pixel2):
+    """
+    Get color difference between two pixels
+    :param pixel1:
+    :param pixel2:
+    :return:
+    """
+    if pixel1 is None or pixel2 is None:
+        return 0, 0, 0
+    B1, G1, R1 = int(pixel1[0]), int(pixel1[1]), int(pixel1[2])
+    B2, G2, R2 = int(pixel2[0]), int(pixel2[1]), int(pixel2[2])
+    return abs(B1 - B2), abs(G1 - G2), abs(R1 - R2)
+
+
+def bresenham_line(start, end):
+    """
+    Bresenham's Line Algorithm
+    Produces a list of tuples from start and end
+    :param start:
+    :param end:
+    :return:
+    """
+    # Setup initial conditions
+    x1, y1 = start
+    x2, y2 = end
+    dx = x2 - x1
+    dy = y2 - y1
+
+    # Determine how steep the line is
+    is_steep = abs(dy) > abs(dx)
+
+    # Rotate line
+    if is_steep:
+        x1, y1 = y1, x1
+        x2, y2 = y2, x2
+
+    # Swap start and end points if necessary and store swap state
+    swapped = False
+    if x1 > x2:
+        x1, x2 = x2, x1
+        y1, y2 = y2, y1
+        swapped = True
+
+    # Recalculate differentials
+    dx = x2 - x1
+    dy = y2 - y1
+
+    # Calculate error
+    error = int(dx / 2.0)
+    ystep = 1 if y1 < y2 else -1
+
+    # Iterate over bounding box generating points between start and end
+    y = y1
+    points = []
+    for x in range(x1, x2 + 1):
+        coord = (y, x) if is_steep else (x, y)
+        points.append(coord)
+        error -= abs(dy)
+        if error < 0:
+            y += ystep
+            error += dx
+
+    # Reverse the list if the coordinates were swapped
+    if swapped:
+        points.reverse()
+    return points
+
+
+def euclidean_distance(x1, y1, x2, y2):
+    import math
+    """
+    Calculate euclidean distance between given points
+    :param x1: 
+    :param y1: 
+    :param x2: 
+    :param y2: 
+    :return: 
+    """
+    dist = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    return float(dist)
+
+
+def interpolate_RBF(img):
+    from PIL import Image
+    from scipy.interpolate import Rbf
+
+    img_data = np.asarray(img)
+
+    # img = Rbf(img_data[:, 0], img_data[:, 1], img_data[:, 2])
+    # val_ar = rbfi(img_data[:, 0], img_data[:, 1], img_data[:, 2])
+
+    img_pil = Image.fromarray(np.uint8(img_data)).convert('RGB')
+    img_pil.show()

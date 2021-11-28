@@ -5,12 +5,14 @@ import cv2
 import numpy as np
 
 
-# Calibrate the camera reading video frames
-# video_path: path where to get the video
-# save_path: path where to save the intrinsics
-# frame_skip: set how many frame to skip between each calibration
-# show_images: if True, show the calibrated images
 def calibrate(video_path, save_path, frame_skip=60, show_images=True):
+    """
+    Calibrate the camera reading video frames
+    :param video_path: path to the video
+    :param save_path: path where to save the intrinsics
+    :param frame_skip: set how many frame to skip between each calibration
+    :param show_images: if True show the calibrated images
+    """
     if not os.path.isfile(video_path):
         raise Exception('Video not found!')
 
@@ -113,6 +115,9 @@ def calibrate(video_path, save_path, frame_skip=60, show_images=True):
 
 
 def compute():
+    """
+    Main function
+    """
     calibrate(cst.ASSETS_STATIC_FOLDER + '/calibration.mov', save_path=cst.INTRINSICS_STATIC_PATH, show_images=False)
     calibrate(cst.ASSETS_MOVING_FOLDER + '/calibration.mp4', save_path=cst.INTRINSICS_MOVING_PATH, show_images=False)
 

@@ -6,11 +6,15 @@
 	- undistorted frames (and save) (open cv)
 	- save frames undistorted
 	- enchantment (morphological operations)
-	- extract features => (orb library) tensor
-	- matching between tensors (moving and static)
-	- find transformations between images (PnP algorithm)
-	- apply translation to static
-	- extract light position from moving camera for each frame (formula)
+	- extract light position:
+	    - orb library
+	    - matching features between moving and static frames
+	    - find homography transformations between images
+	    - extract camera position from homography matrix
+	    OR
+	    - https://coderedirect.com/questions/187125/calculate-camera-world-position-with-opencv-python
+	    - solvePnP with the world coordinates (3D) and image coordinates (2D).
+	    - calculate the camera's position in world coordinates
 	- apply mapping function
 	
 -interactive relighting
