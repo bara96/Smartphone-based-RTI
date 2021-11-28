@@ -45,6 +45,9 @@ class FeatureMatcher:
         list_moving = os.listdir(self.frames_moving_folder_path)
         tot_frames = len(list_moving)
 
+        img = cv2.imread(self.frames_moving_folder_path + "/frame_0.png")
+        self._draw_rectangle_shape(img)
+
         dataset = []
         previous_second_corner = None
         for i in range(0, tot_frames):
@@ -293,7 +296,8 @@ class FeatureMatcher:
                     i += 1
                     test_img = np.zeros(img.shape, np.uint8)  # create empty image from gray
                     cv2.drawContours(test_img, [c], -1, (255, 255, 255), 3, cv2.LINE_AA)
-                    cv2.putText(test_img, "perimeter: {}" .format(peri), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255),
+                    cv2.putText(test_img, "perimeter: {}".format(peri), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                (255, 255, 255),
                                 2, cv2.LINE_AA)
                     cv2.imshow("test{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
                 if peri > max_perimeter:
@@ -306,3 +310,25 @@ class FeatureMatcher:
             return np.array(cnt)
 
         return np.array(cnts_approx)
+
+    @staticmethod
+    def _draw_rectangle_shape(img, show=False):
+        """
+        Create the rectangle shape
+        :param img:
+        """
+        img_rectangle = np.zeros(img.shape, np.uint8)  # create empty image
+
+        top_left = (100, 100)
+        top_right = (570, 100)
+        bottom_left = (100, 570)
+        bottom_right = (570, 570)
+
+        # Draw a rectangle
+        cv2.rectangle(img_rectangle, top_left, bottom_right, (255, 255, 255), 2)
+
+        cv2.circle(img_rectangle, bottom_left, 1, cst.COLOR_BLUE, 10)
+        cv2.circle(img_rectangle, top_left, 1, cst.COLOR_GREEN, 10)
+        if show:
+            cv2.imshow('Shape', cv2.resize(img_rectangle, None, fx=0.6, fy=0.6))
+        return img_rectangle
