@@ -4,12 +4,9 @@ import shutil
 import os
 import cv2
 import math
-import json
-import numpy as np
-from matplotlib import pyplot as plt
 import utilities as ut
 from moviepy.editor import VideoFileClip
-from FeatureMatcher2 import FeatureMatcher
+from FeatureMatcher import FeatureMatcher
 
 
 def get_audio_offset(video_static, video_moving):

@@ -7,458 +7,302 @@ import numpy as np
 
 
 class FeatureMatcher:
-    DETECTOR_ALGORITHM_ORB = 'ORB'
-    DETECTOR_ALGORITHM_SIFT = 'SIFT'
-    DETECTOR_ALGORITHM_SURF = 'SUFT'
-
-    MATCHING_ALGORITHM_BRUTEFORCE = 'BRUTEFORCE'
-    MATCHING_ALGORITHM_KNN = 'KNN'
-    MATCHING_ALGORITHM_FLANN = 'FLANN'
-
-    _RANSAC_THRESHOLD = 0.75
-    _LOWE_THRESHOLD = 0.75
-    _MIN_MATCHES = 4
-
-    def __init__(self, frames_static_folder_path, frames_moving_folder_path,
-                 detector_algorithm=DETECTOR_ALGORITHM_ORB,
-                 matching_algorithm=MATCHING_ALGORITHM_BRUTEFORCE):
+    def __init__(self, frames_moving_folder_path, show_params=False):
         """
         Constructor
-        :param frames_static_folder_path: path to the static frames folder
         :param frames_moving_folder_path: path to the moving frames folder
-        :param detector_algorithm: detector algorithm to use
-        :param matching_algorithm: matching algorithm to use
-        :param algorithm_params: algorithm params
         """
-        self.frames_static_folder_path = frames_static_folder_path
         self.frames_moving_folder_path = frames_moving_folder_path
-        self.detector_algorithm = detector_algorithm
-        self.matching_algorithm = matching_algorithm
-        self.setThreshold()
-
-    def setThreshold(self, matcher=None, min_matches=10, lowe_threshold=0.75, ransac_threshold=6):
-        """
-        Set a default pre-saved threshold for Lowe ratio test
-        :param min_matches:
-        :param lowe_threshold:
-        :param ransac_threshold:
-        :param matcher: matcher algorithm
-        """
-        if matcher == FeatureMatcher.MATCHING_ALGORITHM_KNN:
-            self._MIN_MATCHES = 10
-            self._RANSAC_THRESHOLD = 4
-            self._LOWE_THRESHOLD = 0.75
-        elif matcher == FeatureMatcher.MATCHING_ALGORITHM_FLANN:
-            self._MIN_MATCHES = 10
-            self._RANSAC_THRESHOLD = 4
-            self._LOWE_THRESHOLD = 0.8
+        if show_params is True:
+            self.showParams(show_canny=True, show_rectangle_canvas=True, show_result=True, show_homography=True)
         else:
-            self._MIN_MATCHES = min_matches
-            self._RANSAC_THRESHOLD = ransac_threshold
-            self._LOWE_THRESHOLD = lowe_threshold
+            self.showParams(show_canny=False, show_rectangle_canvas=False, show_result=False, show_homography=False)
 
-    def prepareMatcher(self):
+    def showParams(self, show_canny=True, show_rectangle_canvas=True, show_result=True, show_homography=True):
         """
-        Prepare matcher and detector algorithms
-        :return:
+        Set show parameters
+        :param show_canny: show canny detected edges
+        :param show_rectangle_canvas: show detected rectangle canvas
+        :param show_result: show result
+        :param show_homography: show homography
         """
-        # FLANN parameters
-        FLANN_INDEX_KDTREE = 0
-        FLANN_INDEX_LSH = 6
+        self._show_canny = show_canny
+        self._show_rectangle_canvas = show_rectangle_canvas
+        self._show_corners = show_result
+        self.show_homography = show_homography
 
-        if self.detector_algorithm == FeatureMatcher.DETECTOR_ALGORITHM_ORB:
-            # Initialize the ORB detector algorithm and the Matcher for matching the keypoints
-            detector_alg = cv2.ORB_create()
-            if self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE:
-                # feature matching using Brute-Force matching with ORB Descriptors
-                matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-            elif self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_KNN:
-                # feature matching using KNN matching with ORB Descriptors
-                matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-            elif self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_FLANN:
-                # feature matching using FLANN matching with ORB Descriptors
-                index_params = dict(algorithm=FLANN_INDEX_LSH,
-                                    table_number=6,  # 12
-                                    key_size=12,  # 20
-                                    multi_probe_level=2)  # 2
-                # It specifies the number of times the trees in the index should be recursively traversed.
-                # Higher values gives better precision, but also takes more time
-                search_params = dict(checks=60)
-                matcher = cv2.FlannBasedMatcher(index_params, search_params)
-            else:
-                raise Exception('Matching algorithm for ORB not recognised!')
-        elif self.detector_algorithm == FeatureMatcher.DETECTOR_ALGORITHM_SIFT:
-            # Initialize the SIFT detector algorithm and the Matcher for matching the keypoints
-            detector_alg = cv2.SIFT_create()
-            if self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE:
-                # feature matching using Brute-Force matching with SIFT Descriptors
-                matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
-            elif self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_KNN:
-                # feature matching using KNN matching with SIFT Descriptors
-                matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
-            elif self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_FLANN:
-                # feature matching using FLANN matching with SIFT Descriptors
-                index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
-                # It specifies the number of times the trees in the index should be recursively traversed.
-                # Higher values gives better precision, but also takes more time
-                search_params = dict(checks=60)
-                matcher = cv2.FlannBasedMatcher(index_params, search_params)
-            else:
-                raise Exception('Matching algorithm for SIFT not recognised!')
-        elif self.detector_algorithm == FeatureMatcher.DETECTOR_ALGORITHM_SURF:
-            # Initialize the SURF detector algorithm and the Matcher for matching the keypoints
-            detector_alg = cv2.xfeatures2d.SURF_create()
-            if self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE:
-                # feature matching using Brute-Force matching with SURF Descriptors
-                matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
-            elif self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_KNN:
-                # feature matching using KNN matching with SURF Descriptors
-                matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
-            elif self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_FLANN:
-                # feature matching using FLANN matching with SURF Descriptors
-                index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
-                # It specifies the number of times the trees in the index should be recursively traversed.
-                # Higher values gives better precision, but also takes more time
-                search_params = dict(checks=60)
-                matcher = cv2.FlannBasedMatcher(index_params, search_params)
-            else:
-                raise Exception('Matching algorithm for SURF not recognised!')
-        else:
-            raise Exception('Detector algorithm not recognised!')
-
-        return detector_alg, matcher
-
-    @staticmethod
-    def _homographyCheck(train_image, homography_image):
-        """
-        Check if the homography image match with the train one
-        :param train_image: OpenCv image
-        :param homography_image: OpenCv image
-        :return:
-        """
-        detector_alg = cv2.ORB_create()
-        matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-
-        train_img_bw = cv2.cvtColor(train_image, cv2.COLOR_BGR2GRAY)
-        query_img_bw = cv2.cvtColor(homography_image, cv2.COLOR_BGR2GRAY)
-
-        train_img_bw = ut.image_blur(train_img_bw, iterations=5)
-        query_img_bw = ut.image_blur(query_img_bw, iterations=5)
-
-        queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
-        trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
-
-        if trainKeypoints is None:
-            return False
-
-        matches = matcher.match(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors)
-
-        # remove outliers
-        trainKeypoints, queryKeypoints, good_matches, check = FeatureMatcher._checkOutliers(
-            train_keypoints=trainKeypoints,
-            query_keypoints=queryKeypoints,
-            matches=matches, ransac_threshold=6)
-
-        good_matches = sorted(good_matches, key=lambda x: x.distance)
-
-        debug = False
-        if debug:
-            final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches, None)
-            cv2.imshow("Homography Check", cv2.resize(final_img, None, fx=0.3, fy=0.3))
-            print("Checks:", len(good_matches))
-
-        if len(good_matches) < 25:
-            return False
-        return True
-
-    @staticmethod
-    def _homographyTransformation(src_image, src_keypoints, dst_image, dst_keypoints, matches,
-                                  transform_inverse=False, show_images=True, save_as=None):
-        """
-        Find homography matrix and do perspective transform between source and destination image
-        :param dst_image: OpenCv image
-        :param dst_keypoints: keypoints, descriptors of the source image
-        :param src_image: OpenCv image
-        :param src_keypoints: keypoints, descriptors of the destination image
-        :param matches: matches between source and destination keypoints
-        :param transform_inverse: if True transform dst_image into src_image, otherwise transform src_image into dst_image image
-        :param show_images: if True show results
-        :param save_as: save filename for results, if None don't save
-        :return:
-        """
-        import os
-
-        src_pts = np.float32([src_keypoints[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
-        dst_pts = np.float32([dst_keypoints[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
-
-        if not transform_inverse:
-            # Warp train image into query image based on homography
-            matrix, mask = cv2.findHomography(src_pts, dst_pts, None, 6)
-            if matrix is None:
-                return None
-            im_out = cv2.warpPerspective(src_image, matrix, (dst_image.shape[1], dst_image.shape[0]))
-        else:
-            # Warp train image into query image based on homography
-            matrix, mask = cv2.findHomography(dst_pts, src_pts, None, 6)
-            if matrix is None:
-                return None
-            im_out = cv2.warpPerspective(dst_image, matrix, (src_image.shape[1], src_image.shape[0]))
-
-        if show_images:
-            cv2.imshow("Transformed", cv2.resize(im_out, None, fx=0.3, fy=0.3))
-            #cv2.waitKey(0)
-        if save_as is not None:
-            if not os.path.isdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH):
-                os.mkdir(cst.TRANSFORMATION_RESULTS_FOLDER_PATH)
-            cv2.imwrite(cst.TRANSFORMATION_RESULTS_FOLDER_PATH + '/' + save_as, im_out)
-
-        if FeatureMatcher._homographyCheck(dst_image, im_out):
-            return matrix
-        else:
-            return None
-
-    @staticmethod
-    def _checkOutliers(train_keypoints, query_keypoints, matches, ransac_threshold=7):
-        """
-        Usage of Ransac to remove outliers from matches
-        :param train_keypoints: keypoints of the train image
-        :param query_keypoints: keypoints of the query image
-        :param matches: matches between the keypoints of  the two images
-        :return:
-        """
-        from skimage.measure import ransac
-        from skimage.transform import AffineTransform
-
-        MIN_SAMPLES = 4
-        if len(matches) <= MIN_SAMPLES:
-            return train_keypoints, query_keypoints, matches, False
-
-        train_pts = np.float32([train_keypoints[m.trainIdx].pt for m in matches]).reshape(-1, 2)
-        query_pts = np.float32([query_keypoints[m.queryIdx].pt for m in matches]).reshape(-1, 2)
-        # Ransac
-        model, inliers = ransac(
-            (train_pts, query_pts),
-            AffineTransform, min_samples=MIN_SAMPLES,
-            residual_threshold=ransac_threshold, max_trials=200
-        )
-
-        if inliers is None:
-            return train_keypoints, query_keypoints, matches, False
-
-        n_inliers = np.sum(inliers)
-
-        inlier_keypoints_train = [cv2.KeyPoint(float(point[0]), float(point[1]), 1.) for point in train_pts[inliers]]
-        inlier_keypoints_query = [cv2.KeyPoint(float(point[0]),  float(point[1]), 1.) for point in query_pts[inliers]]
-        placeholder_matches = [cv2.DMatch(idx, idx, 1) for idx in range(n_inliers)]
-
-        return inlier_keypoints_train, inlier_keypoints_query, placeholder_matches, True
-
-    @staticmethod
-    def _findPosePNP(train_keypoints, query_keypoints, matches, K, d, image, show_position=True):
-        """
-        Solve PNP and use Rodrigues to find Camera world position
-        :param train_keypoints: keypoints of the train image
-        :param query_keypoints: keypoints of the query image
-        :param matches: matches between the keypoints of  the two images
-        :param K: camera intrinsics matrix
-        :param d: camera intrinsics distortion
-        :param image: OpenCv image
-        :param show_position:
-        :return:
-        """
-        # train_pts = np.float32([train_keypoints[m.trainIdx].pt for m in matches])
-        train_pts = np.float32([np.append(train_keypoints[m.trainIdx].pt, 1.) for m in matches])
-        query_pts = np.float32([query_keypoints[m.queryIdx].pt for m in matches])
-        # query_pts = np.float32([np.append(query_keypoints[m.queryIdx].pt, 1.) for m in matches])
-
-        ret, rvecs, tvecs = cv2.solvePnP(train_pts, query_pts, K, d)
-        rotM = cv2.Rodrigues(rvecs)[0]
-        camera_position = -np.matrix(rotM).T * np.matrix(tvecs)
-        #camera_position = -rotM.transpose() * tvecs
-
-        train_img_new = image.copy()
-        train_img_new, x, y = ut.image_draw_circle(train_img_new, camera_position[0], camera_position[1],
-                                                   (0, 0, 255))
-        if show_position:
-            cv2.imshow("Camera Position", cv2.resize(train_img_new, None, fx=0.3, fy=0.3))
-
-        return camera_position
-
-    def extractFeatures(self, show_params=None, save_images=False):
+    def extractFeatures(self):
         """
         Feature matching and homography check
         :param show_params: if True show all results
-        :param save_images: if True save results
         :return:
         """
 
-        if not os.path.isdir(self.frames_static_folder_path):
-            raise Exception('Static folder not found!')
         if not os.path.isdir(self.frames_moving_folder_path):
             raise Exception('Moving folder not found!')
 
-        show_homography = False
-        show_camera_position = False
-        show_matches = False
-        show_histogram = False
-        if show_params is True:
-            show_homography = True
-            show_camera_position = True
-            show_matches = True
-            show_histogram = True
-        elif show_params is False:
-            show_homography = False
-            show_camera_position = False
-            show_matches = False
-            show_histogram = False
-        elif show_params is not None:
-            if show_params['homography'] is not None:
-                show_homography = show_params['homography']
-            if show_params['camera_position'] is not None:
-                show_camera_position = show_params['camera_position']
-            if show_params['matches'] is not None:
-                show_matches = show_params['matches']
-            if show_params['histogram'] is not None:
-                show_histogram = show_params['histogram']
-
         # read frames from folders
-        list_static = os.listdir(self.frames_static_folder_path)
-        n_files_static = len(list_static)
         list_moving = os.listdir(self.frames_moving_folder_path)
-        n_files_moving = len(list_moving)
-        tot_frames = min(n_files_static, n_files_moving)
-
-        detector_alg, matcher = self.prepareMatcher()
-
-        # default algorithm_params
-        if self._MIN_MATCHES < 4:
-            self._MIN_MATCHES = 4  # required at least 4 matches for homography
-
-        print("Selected parameters:")
-        print("- Detector Algorithm: ", self.detector_algorithm)
-        print("- Matching Algorithm: ", self.matching_algorithm)
-        print("- MIN MATCH: ", self._MIN_MATCHES)
-        print("- LOWE THRESHOLD: ", self._LOWE_THRESHOLD)
-        print("- RANSAC THRESHOLD: ", self._RANSAC_THRESHOLD)
-        print("\n")
+        tot_frames = len(list_moving)
 
         dataset = []
-        n_accepted = 0
-        n_discarded = 0
+        previous_lambda_corner = None
         for i in range(0, tot_frames):
-            # Read the train image
-            train_filename = self.frames_static_folder_path + "/frame_{}.png".format(i)
-            train_img = cv2.imread(train_filename)
-
             # Read the query image
-            query_filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
-            query_img = cv2.imread(query_filename)
+            filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
+            print("Frame n° ", i)
+            img = cv2.imread(filename)
+            height, width, _ = img.shape
 
-            '''
-            Image enchantments Phase
-            '''
-            train_img_bw = cv2.cvtColor(train_img, cv2.COLOR_BGR2GRAY)
-            query_img = ut.enchant_brightness_and_contrast(query_img)
-            query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
+            ''' Image Enchanting '''
+            gray = ut.enchant_brightness_and_contrast(img)
+            gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
+            gray = 255 - gray
+            gray = ut.image_blur(gray, iterations=5)
+            # gray = ut.enchant_morphological(gray, [cv2.MORPH_CLOSE], iterations=1)
 
-            #train_img_bw = ut.enchant_morphological(train_img_bw, [cv2.MORPH_OPEN])
-            #query_img_bw = ut.enchant_morphological(query_img_bw, [cv2.MORPH_OPEN])
+            ''' Image Refinement'''
+            # find image edges
+            canny = self._findEdges(gray)
 
-            train_img_bw = ut.image_blur(train_img_bw, iterations=10)
-            query_img_bw = ut.image_blur(query_img_bw, iterations=10)
+            # refine all contours
+            cnts = self._findContours(canny)
+            cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
 
-            '''
-            Feature Matching Phase
-            '''
-            # Now detect the keypoints and compute the descriptors for the query image and train image
-            trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
-            queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
+            # draw only the longest contour (bigger rectangle)
+            rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
+            cnts = self._findContours(canny, True, show_contours=False)
 
-            # match the keypoints and sort them in the order of their distance.
-            if self.matching_algorithm == FeatureMatcher.MATCHING_ALGORITHM_BRUTEFORCE:
-                matches = matcher.match(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors)
-                good_matches = matches
-            else:
-                matches = matcher.knnMatch(queryDescriptors=queryDescriptors, trainDescriptors=trainDescriptors, k=2)
-                # Apply Lowe ratio test
-                good_matches = []
-                for m, n in matches:
-                    if m.distance < self._LOWE_THRESHOLD * n.distance:
-                        good_matches.append(m)
+            cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
 
-            # remove outliers
-            trainKeypoints, queryKeypoints, good_matches, check = FeatureMatcher._checkOutliers(train_keypoints=trainKeypoints,
-                                                                                                query_keypoints=queryKeypoints,
-                                                                                                matches=good_matches,
-                                                                                                ransac_threshold=self._RANSAC_THRESHOLD)
+            ''' Corner Detection'''
+            # find corners
+            corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
+                                              maxCorners=4,
+                                              qualityLevel=0.1,
+                                              minDistance=30,
+                                              blockSize=20,
+                                              useHarrisDetector=False)
 
-            good_matches = sorted(good_matches, key=lambda x: x.distance)
+            if corners is None or len(corners) != 4:
+                ut.console_log("Error: Wrong corners detected", 'e')
+                continue
+            corners = np.int0(corners)
 
-            ''' 
-            Homography checks Phase 
-            '''
-            if not check:
-                print("Discarded: Can't remove outliers")
-            elif len(good_matches) >= self._MIN_MATCHES:
-                # try to transform the static into the moving
-                save_as = None
-                if save_images:
-                    save_as = "frame_{}.png".format(i)
+            # find the default corner
+            default_corner = self.findDefaultCorner(img, corners)
+            if default_corner is None:
+                ut.console_log("Error: Default corner not found", 'e')
+                continue
 
-                # find homography to check if matches are acceptable
-                homography = FeatureMatcher._homographyTransformation(src_image=train_img,
-                                                                      src_keypoints=trainKeypoints,
-                                                                      dst_image=query_img,
-                                                                      dst_keypoints=queryKeypoints,
-                                                                      matches=good_matches,
-                                                                      show_images=show_homography,
-                                                                      save_as=save_as)
-                if homography is not None:
-                    print("Accepted: matches found - %d/%d" % (len(good_matches), self._MIN_MATCHES))
-                    n_accepted += 1
+            distances_default = []
+            distances_lambda = []
+            for c in range(0, len(corners)):
+                x, y = corners[c].ravel()
+                # calculate for each corner the distance between default corner
+                distance_default = ut.euclidean_distance(x, y, default_corner[0], default_corner[1])
+                if distance_default > 0:
+                    cv2.circle(img, (x, y), 1, cst.COLOR_RED, 10)
+                    cv2.putText(img, str(distance_default), (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, cst.COLOR_RED,
+                                2, cv2.LINE_AA)
+                    distances_default.append(dict(index=c, point=(x, y), distance=distance_default))
+                    # calculate the distance between points and previous lambda point
+                    if previous_lambda_corner is not None:
+                        distance_lambda = ut.euclidean_distance(x, y,
+                                                                previous_lambda_corner[0],
+                                                                previous_lambda_corner[1])
+                        distances_lambda.append(dict(index=c, point=(x, y), distance=distance_lambda))
 
-                    K, d = ut.get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
+            # search for lambda corner
+            if previous_lambda_corner is not None:
+                cv2.circle(img, previous_lambda_corner, 1, cst.COLOR_PURPLE, 10)
+            lambda_corner = self.findLambdaCorner(img, distances_default, distances_lambda)
+            previous_lambda_corner = lambda_corner
 
-                    camera_position = FeatureMatcher._findPosePNP(trainKeypoints, queryKeypoints, good_matches,
-                                                                  K, d, train_img, show_camera_position)
-
-                    data = dict(trainImage=train_filename,
-                                queryImage=query_filename,
-                                camera_position=camera_position)
-                    dataset.append(data)
-                else:
-                    n_discarded += 1
-                    print("Discarded: Inaccurate homography")
-            else:
-                n_discarded += 1
-                print("Discarded: Not enough matches are found - %d/%d" % (len(good_matches), self._MIN_MATCHES))
-
-            '''
-            Show results Phase
-            '''
-            # draw the matches to the final image containing both the images
-            final_img = None
-            if show_matches or save_images:
-                final_img = cv2.drawMatches(query_img_bw, queryKeypoints, train_img_bw, trainKeypoints, good_matches,
-                                            None)
-
-            # Show the final image
-            if show_matches:
-                cv2.imshow("Matches", cv2.resize(final_img, None, fx=0.4, fy=0.4))
-            # Save the final image
-            if save_images:
-                if not os.path.isdir(cst.MATCHING_RESULTS_FOLDER_PATH):
-                    os.mkdir(cst.MATCHING_RESULTS_FOLDER_PATH)
-                cv2.imwrite(cst.MATCHING_RESULTS_FOLDER_PATH + '/frame_{}.png'.format(i), final_img)
-
-            if show_params is not None:
-                cv2.waitKey(0)
-                plt.close()
-
-        print("\n")
-        print("N° of accepted frames: ", n_accepted)
-        print("N° of discarded frames: ", n_discarded)
-        print("Error %: ", n_discarded / tot_frames * 100)
-        print("\n")
+            if self._show_canny is True:
+                cv2.imshow('Canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
+            if self._show_rectangle_canvas is True:
+                cv2.imshow("Rectangle Canvas", cv2.resize(rectangle_canvas, None, fx=0.6, fy=0.6))
+            if self._show_corners is True:
+                cv2.imshow('Corners', cv2.resize(img, None, fx=0.6, fy=0.6))
+            cv2.waitKey(0)
 
         return dataset
+
+    @staticmethod
+    def findDefaultCorner(img, corners, show_point=True):
+        """
+        Find the default corner of the rectangle
+        The default corner is the nearest to the circle
+        :param img: OpenCv image
+        :param corners: corners of the rectangle
+        :param show_point: if True, show the point on image
+        :return:
+        """
+        # search x and y bounds
+        max_x = 0
+        min_x = img.shape[1]
+        max_y = 0
+        min_y = img.shape[0]
+        for corner in corners:
+            x, y = corner.ravel()
+            if x > max_x:
+                max_x = x
+            if x < min_x:
+                min_x = x
+            if y > max_y:
+                max_y = y
+            if y < min_y:
+                min_y = y
+
+        # search default point
+        show_img = None  # img.copy()
+        default_corner = None
+        min_distance = 100
+        x_median = round(max_x - (max_x - min_x) / 2)
+        y_median = round(max_y - (max_y - min_y) / 2)
+        for corner in corners:
+            x, y = corner.ravel()
+            distance = FeatureMatcher._searchWhiteBorder(img,
+                                                         x_start=x,
+                                                         y_start=y,
+                                                         x_destination=x_median,
+                                                         y_destination=y_median,
+                                                         limit=min_distance,
+                                                         show_img=show_img)
+
+            if distance is not False and distance < min_distance:
+                default_corner = (x, y)
+                min_distance = distance
+
+        if show_point:
+            cv2.circle(img, default_corner, 1, cst.COLOR_BLUE, 10)
+
+        return default_corner
+
+    @staticmethod
+    def _searchWhiteBorder(img, x_start, y_start, x_destination, y_destination, limit=1000, show_img=None):
+        """
+        Search for the white border aiming for center of the rectangle
+        :param img: OpenCv image
+        :param x_start:
+        :param y_start:
+        :param x_destination:
+        :param y_destination:
+        :param show_img: OpenCv image, if is set draw the search lines on the image
+        :return:
+        """
+        # get line pixels points
+        points = ut.bresenham_line((x_start, y_start), (x_destination, y_destination))
+        for i in range(0, len(points)):
+            x_prev, y_prev = points[i - 1]
+            x, y = points[i]
+            # stop if limit is reached
+            if i > limit:
+                return False
+
+            if show_img is not None:
+                cv2.circle(show_img, (x, y), 1, cst.COLOR_GREEN, 2)
+
+            # check pixel intensity variation, i>10 to avoid pixels starting out of canvas
+            diff_B, diff_G, diff_R = ut.get_pixel_variation(img[y][x], img[y_prev][x_prev])
+            if i > 15 and (diff_B > 15 or diff_G > 15 or diff_R > 15):
+                # print("diff: ", diff_B, diff_G, diff_R)
+                return i
+        return False
+
+    @staticmethod
+    def findLambdaCorner(img, distances_default, distances_lambda, show_point=True):
+        """
+        Calculate lambda point
+        We will define a 'lambda' corner as a corner near to the default, and we will track it between frames
+        :param img: OpenCv image
+        :param distances_default: distances from the default_corner and the corners
+        :param distances_lambda: distances from the previous_lambda and the corners
+        :param show_point: if True, show the point on image
+        :return:
+        """
+
+        distances_default = sorted(distances_default, key=lambda item: item['distance'])
+        lambda_corner = distances_default[0].get('point')
+
+        if len(distances_lambda) <= 0:
+            if show_point:
+                cv2.circle(img, lambda_corner, 1, cst.COLOR_GREEN, 10)
+            return lambda_corner
+
+        # the one nearest to the previous_lambda and that is not the farthest from default is the current lambda
+        distances_lambda = sorted(distances_lambda, key=lambda item: item['distance'])
+
+        lambda_corner = distances_lambda[0].get('point')
+        '''
+        k = 0
+        found = False
+        while k < len(distances_lambda) or found is False:
+            corner_idx = distances_lambda[k].get('index')
+            if distances_default[-1].get('index') != corner_idx:
+                lambda_corner = distances_lambda[k].get('point')
+                found = True
+            k += 1
+        '''
+        if show_point:
+            cv2.circle(img, lambda_corner, 1, cst.COLOR_GREEN, 10)
+        return lambda_corner
+
+    @staticmethod
+    def _findEdges(img):
+        """
+        Find image edges with Canny
+        :param img:
+        :return:
+        """
+        sigma = 0.4
+        # compute the median of the single channel pixel intensities
+        v = np.median(img)
+        # apply automatic Canny edge detection using the computed median
+        lower = int(max(0, (1.0 - sigma) * v))
+        upper = int(min(255, (1.0 + sigma) * v))
+        canny = cv2.Canny(img, lower, upper)
+        # canny = cv2.Canny(gray, 120, 140)
+        # canny = np.float32(canny)
+
+        return canny
+
+    @staticmethod
+    def _findContours(img, max_only=False, show_contours=False):
+        """
+        Find image contours
+        :param img:
+        :param max_only:
+        :return:
+        """
+        # thresh = cv2.threshold(canvas, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+        # Find contours and sort for largest contour
+        cnts, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
+
+        max_perimeter = 0
+        cnt = None
+        perimeters = []
+        cnts_approx = []
+        i = 0
+        if len(cnts) > 0:
+            for c in cnts:
+                peri = cv2.arcLength(c, closed=True)
+                if show_contours and peri > 1000:
+                    i += 1
+                    test_img = np.zeros(img.shape, np.uint8)  # create empty image from gray
+                    cv2.drawContours(test_img, [c], -1, (255, 255, 255), 3, cv2.LINE_AA)
+                    cv2.putText(test_img, "perimeter: {}" .format(peri), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255),
+                                2, cv2.LINE_AA)
+                    cv2.imshow("test{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
+                if peri > max_perimeter:
+                    max_perimeter = peri
+                    cnt = [c]
+                cnts_approx.append(c)
+                perimeters.append(peri)
+
+        if max_only:
+            return np.array(cnt)
+
+        return np.array(cnts_approx)
