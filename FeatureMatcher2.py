@@ -71,7 +71,7 @@ class FeatureMatcher:
 
             # draw only the longest contour (bigger rectangle)
             rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
-            cnts = self._findContours(canny, True, test=True)
+            cnts = self._findContours(canny, True, show_contours=False)
 
             cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
 
@@ -269,7 +269,7 @@ class FeatureMatcher:
         return canny
 
     @staticmethod
-    def _findContours(img, max_only=False, test=False):
+    def _findContours(img, max_only=False, show_contours=False):
         """
         Find image contours
         :param img:
@@ -289,11 +289,11 @@ class FeatureMatcher:
         if len(cnts) > 0:
             for c in cnts:
                 peri = cv2.arcLength(c, closed=True)
-                if test and peri > 1000:
+                if show_contours and peri > 1000:
                     i += 1
                     test_img = np.zeros(img.shape, np.uint8)  # create empty image from gray
                     cv2.drawContours(test_img, [c], -1, (255, 255, 255), 3, cv2.LINE_AA)
-                    cv2.putText(test_img, str(peri), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255),
+                    cv2.putText(test_img, "perimeter: {}" .format(peri), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255),
                                 2, cv2.LINE_AA)
                     cv2.imshow("test{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
                 if peri > max_perimeter:
