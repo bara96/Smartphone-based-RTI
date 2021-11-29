@@ -1,6 +1,5 @@
 # Import required modules
 import constants as cst
-import shutil
 import os
 import cv2
 import math
@@ -59,7 +58,7 @@ def generate_video_default_frame(video_path, calibration_file_path, file_name='d
     :param calibration_file_path: path to the intrinsics calibration file
     :param file_name: file name to save the frame
     """
-    SAVE_PATH = cst.FRAMES_FOLDER_PATH + "/" + file_name + ".png"
+    SAVE_PATH = cst.ASSETS_BASE_FOLDER + "/" + file_name + ".png"
 
     matrix, distortion = ut.get_camera_intrinsics(calibration_file_path)
 
@@ -87,125 +86,110 @@ def generate_video_default_frame(video_path, calibration_file_path, file_name='d
     cv2.destroyAllWindows()
 
 
-def extract_video_frames(video_path, calibration_file_path, tot_frames, n_frames=30, offset=0):
+def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_frames=0,
+                         video_static_offset=0, video_moving_offset=0, start_from_frame=0):
     """
-    Get undistorted frames images from the video and extract features
-    :param video_path: path to the video
-    :param calibration_file_path: path to the intrinsics calibration file
-    :param tot_frames: total number of frames of the video
-    :param n_frames: number of frames to generate
-    :param offset: starting offset for the video
+    Get undistorted frames images from the video_static and extract features
+    :param static_video_path: path to the video_static
+    :param moving_video_path: path to the video_moving
+    :param tot_frames: total number of frames of the video_static
+    :param max_frames: set a max n° of frames to read
+    :param video_static_offset: starting offset for the static video
+    :param video_moving_offset: starting offset for the moving video
+    :param start_from_frame: starting a given frame
     :return:
     """
-    matrix, distortion = ut.get_camera_intrinsics(calibration_file_path)
+
+    matrix_static, distortion_static = ut.get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
+    matrix_moving, distortion_moving = ut.get_camera_intrinsics(cst.INTRINSICS_MOVING_PATH)
 
     # Opens the Video file
-    video = cv2.VideoCapture(video_path)
+    video_static = cv2.VideoCapture(static_video_path)
+    video_moving = cv2.VideoCapture(moving_video_path)
 
-    # check frame overflow
-    if n_frames > tot_frames:
-        n_frames = tot_frames
+    video_static_offset *= 30  # 30 fps * offset
+    video_moving_offset *= 30  # 30 fps * offset
 
-    offset *= 30  # 30 fps * offset
-    frame_n = offset  # starting from offset (for video sync)
-    frame_skip = math.trunc((tot_frames - offset) / n_frames)  # skip threshold between frames to obtain n_frames
+    # starting from offset (for video_static sync)
+    frame_static_fps_count = 0
+    frame_static_cursor = video_static_offset
+    frame_moving_cursor = video_moving_offset
+
+    # skip threshold between frames to read a maximum of max_frames
+    if max_frames is not 0:
+        offset = max(video_static_offset, video_moving_offset)
+        if max_frames < int(tot_frames/8):
+            # keep at least 1/8 of the frames for a good precision
+            max_frames = int(tot_frames/8)
+        if max_frames > tot_frames:
+            max_frames = tot_frames - offset
+        frame_skip = math.trunc((tot_frames - offset) / max_frames)
+    else:
+        offset = max(video_static_offset, video_moving_offset)
+        max_frames = tot_frames - offset
+        frame_skip = 1
+
+    print("Max frames to read:", max_frames, "\n")
+
+    if 0 < start_from_frame < tot_frames:
+        frame_static_cursor += start_from_frame * frame_skip
+        frame_moving_cursor += start_from_frame * frame_skip
+        frame_static_fps_count = int(frame_moving_cursor / 25)
+        frame_static_cursor += frame_static_fps_count
+        video_static.set(cv2.CAP_PROP_POS_FRAMES, frame_static_cursor)
+        video_moving.set(cv2.CAP_PROP_POS_FRAMES, frame_moving_cursor)
 
     fm = FeatureMatcher()
-    fm.showParams(show_canny=False, show_rectangle_canvas=False, show_default_shape=False,
+    fm.showParams(show_rectangle_canvas=True, show_default_shape=False,
                   show_corners=True, show_previous_corners=False, show_homography=False)
 
-    ret, frame = video.read()
-    frame_new = ut.undistort_image(frame, matrix, distortion)
-    default_shape, default_shape_points = fm.computeDefaultShape(frame_new)
+    ret_static, frame_static = video_static.read()
+    frame_static = ut.undistort_image(frame_static, matrix_moving, distortion_moving)
+    default_shape, default_shape_points = fm.computeDefaultShape(frame_static)
 
     dataset = []
-    for i in range(0, n_frames):
+    for i in range(start_from_frame, max_frames - 1):
         print("Frame n° ", i)
-        frame_n += frame_skip
-        video.set(cv2.CAP_PROP_POS_FRAMES, frame_n)  # skip frames
-        ret, frame = video.read()
-        if ret == False:
+        ret_static, frame_static = video_static.read()
+        ret_moving, frame_moving = video_moving.read()
+        if ret_static is False or ret_moving is False:
             ut.console_log('Error: Null frame', 'e')
             continue
 
-        frame_new = ut.undistort_image(frame, matrix, distortion)
-        result = fm.extractFeatures(frame_new, default_shape, default_shape_points)
+        frame_static = ut.undistort_image(frame_static, matrix_static, distortion_static)
+        frame_moving = ut.undistort_image(frame_moving, matrix_moving, distortion_moving)
+        result = fm.extractFeatures(static_img=frame_static, moving_img=frame_moving,
+                                    default_shape=default_shape, default_shape_points=default_shape_points)
         if result is not False:
             dataset.append(result)
 
-    video.release()
+        # every 25 frames skip a frame of the static video to keep sync
+        '''
+        if frame_moving_cursor > 0:
+            fps_count = int(frame_moving_cursor / 25)
+            if fps_count > frame_static_fps_count:
+                frame_static_fps_count = fps_count
+                frame_static_cursor += 1
+        '''
+
+        # skip frames
+        frame_static_cursor += frame_skip
+        frame_moving_cursor += frame_skip
+        video_static.set(cv2.CAP_PROP_POS_FRAMES, frame_static_cursor)
+        video_moving.set(cv2.CAP_PROP_POS_FRAMES, frame_moving_cursor)
+
+    video_static.release()
+    video_moving.release()
     cv2.destroyAllWindows()
 
     return dataset
 
 
-def generate_video_frames(video_path, calibration_file_path, tot_frames, n_frames=30, offset=0, dir_name='sample'):
+def sync_videos(video_static_path, video_moving_path):
     """
-    Generate undistorted frames images from the video
-    :param video_path: path to the video
-    :param calibration_file_path: path to the intrinsics calibration file
-    :param tot_frames: total number of frames of the video
-    :param n_frames: number of frames to generate
-    :param offset: starting offset for the video
-    :param dir_name: directory name where to save the frames
-    :return:
-    """
-    SAVE_PATH = cst.FRAMES_FOLDER_PATH + "/" + dir_name
-
-    matrix, distortion = ut.get_camera_intrinsics(calibration_file_path)
-
-    # create BASE_SAVE_PATH folder if not exists
-    if not os.path.exists(cst.FRAMES_FOLDER_PATH):
-        os.mkdir(cst.FRAMES_FOLDER_PATH)
-
-    # delete previous saved frames images, otherwise create SAVE_PATH folder
-    if os.path.exists(SAVE_PATH):
-        try:
-            shutil.rmtree(SAVE_PATH)
-            os.mkdir(SAVE_PATH)
-        except OSError as e:
-            print("Error: %s - %s." % (e.filename, e.strerror))
-    else:
-        os.mkdir(SAVE_PATH)
-
-    # Opens the Video file
-    video = cv2.VideoCapture(video_path)
-
-    # check frame overflow
-    if n_frames > tot_frames:
-        n_frames = tot_frames
-
-    offset *= 30  # 30 fps * offset
-    frame_n = offset  # starting from offset (for video sync)
-    frame_skip = math.trunc((tot_frames - offset) / n_frames)  # skip threshold between frames to obtain n_frames
-    print('Generating frames for {}..'.format(dir_name))
-    for i in range(0, n_frames):
-        frame_n += frame_skip
-        video.set(cv2.CAP_PROP_POS_FRAMES, frame_n)  # skip frames
-        ret, frame = video.read()
-        if ret == False:
-            raise Exception('Null frame')
-
-        frame_new = ut.undistort_image(frame, matrix, distortion)
-        # save image
-        cv2.imwrite(SAVE_PATH + '/frame_' + str(i) + '.png', frame_new)
-        # cv2.imshow('frame_new', frame_new)
-        # cv2.waitKey(0)
-    print('Generated frames into \"{}\".. \n'.format(SAVE_PATH))
-
-    video.release()
-    cv2.destroyAllWindows()
-
-    return SAVE_PATH
-
-
-def sync_videos(video_static_path, video_moving_path, n_frames=60, without_save=False):
-    """
-    Synchronize the videos and generate undistorted frames of synchronized videos
+    Synchronize the videos and get the offset and n° of frames
     :param video_static_path: path to the static video
     :param video_moving_path: path to the moving video
-    :param n_frames: n° of frames to extract
-    :param without_save: if True, compute offset without saving frames
     """
     if not os.path.isfile(video_static_path):
         raise Exception('Video static not found!')
@@ -219,83 +203,36 @@ def sync_videos(video_static_path, video_moving_path, n_frames=60, without_save=
     video_static_offset, video_moving_offset = get_audio_offset(video_static, video_moving)
 
     # extract filename from video path in order to create a directory for video frames
-    video_static_dir = 'static_' + os.path.splitext(os.path.basename(video_static_path))[0]
-    video_moving_dir = 'moving_' + os.path.splitext(os.path.basename(video_moving_path))[0]
     video_default_frame = 'default_' + os.path.splitext(os.path.basename(video_static_path))[0]
 
     # total number of frames of shortest video
     tot_frames = min(ut.get_video_total_frames(video_static_path), ut.get_video_total_frames(video_moving_path))
 
-    if without_save is False:
-        # generate default frame from static video
-        generate_video_default_frame(video_path=video_static_path,
-                                     calibration_file_path=cst.INTRINSICS_STATIC_PATH,
-                                     file_name=video_default_frame)
-
-        # generate frames for static video
-        generate_video_frames(video_path=video_static_path,
-                              calibration_file_path=cst.INTRINSICS_STATIC_PATH,
-                              n_frames=n_frames,
-                              tot_frames=tot_frames,
-                              dir_name=video_static_dir,
-                              offset=video_static_offset)
-
-        # generate frames for moving video
-        generate_video_frames(video_path=video_moving_path,
-                              calibration_file_path=cst.INTRINSICS_MOVING_PATH,
-                              n_frames=n_frames,
-                              tot_frames=tot_frames,
-                              dir_name=video_moving_dir,
-                              offset=video_moving_offset)
+    # generate default frame from static video
+    generate_video_default_frame(video_path=video_static_path,
+                                 calibration_file_path=cst.INTRINSICS_STATIC_PATH,
+                                 file_name=video_default_frame)
 
     return video_static_offset, video_moving_offset, tot_frames
 
 
-def compute(video_name='coin1', n_frames=300, sync=False, without_save=False):
+def compute(video_name='coin1'):
     """
     Main function
     :param video_name: name of the video to take
-    :param n_frames: n° of frames to detect
-    :param sync: if True, sync the videos and save frames from the video (overwrite old frames)
-    :param without_save: if True, does not save frames into folder and extract features directly on video
     """
     video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(video_name)
     video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(video_name)
-    frames_static_folder = cst.FRAMES_FOLDER_PATH + '/static_{}'.format(video_name)
-    frames_moving_folder = cst.FRAMES_FOLDER_PATH + '/moving_{}'.format(video_name)
 
-    # to get a good precision, we need at least 1/9 of the video frames
-    min_frames = int(ut.get_video_total_frames(video_moving_path) / 9)
-    if n_frames < min_frames:
-        n_frames = min_frames
-
-    if without_save is True:
-        # extract features directly from video, without saving frame images
-        _, video_moving_offset, tot_frames = sync_videos(video_static_path, video_moving_path, n_frames=n_frames, without_save=True)
-        results = extract_video_frames(video_path=video_moving_path,
-                                       calibration_file_path=cst.INTRINSICS_MOVING_PATH,
-                                       n_frames=n_frames,
-                                       tot_frames=tot_frames,
-                                       offset=video_moving_offset)
-    else:
-        # generate and save frame images and next extract features
-        if sync:
-            sync_videos(video_static_path, video_moving_path, n_frames=n_frames)
-        elif not os.path.isdir(frames_static_folder) or not os.path.isdir(frames_moving_folder):
-            # if frames folders aren't found do sync_videos
-            sync_videos(video_static_path, video_moving_path, n_frames=n_frames)
-
-        '''
-        fm = FeatureMatcher(frames_static_folder, frames_moving_folder)
-        fm.setThreshold(min_matches=5, lowe_threshold=0.9, ransac_threshold=5)
-        show_images = dict(homography=True, camera_position=True, matches=True, histogram=False)
-        results = fm.extractFeatures(show_params=show_images, save_images=False)
-        '''
-
-        fm = FeatureMatcher()
-        fm.showParams(show_canny=False, show_rectangle_canvas=False, show_default_shape=False,
-                      show_corners=True, show_previous_corners=False, show_homography=True)
-        results = fm.extractFeaturesFromFolder(frames_moving_folder)
+    # extract features directly from video, without saving frame images
+    video_static_offset, video_moving_offset, tot_frames = sync_videos(video_static_path, video_moving_path)
+    results = extract_video_frames(static_video_path=video_static_path,
+                                   moving_video_path=video_moving_path,
+                                   tot_frames=tot_frames,
+                                   max_frames=300,
+                                   video_moving_offset=video_moving_offset,
+                                   video_static_offset=video_static_offset,
+                                   start_from_frame=0)
 
     # write results on file
     file_path = "assets/results_{}.pickle".format(video_name)
@@ -306,4 +243,4 @@ def compute(video_name='coin1', n_frames=300, sync=False, without_save=False):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    compute(video_name='coin1', sync=False, without_save=False)
+    compute(video_name='coin1')
