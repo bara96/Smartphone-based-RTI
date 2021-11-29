@@ -14,27 +14,28 @@ class FeatureMatcher:
         """
         self.frames_moving_folder_path = frames_moving_folder_path
         if show_params is True:
-            self.showParams(show_canny=True, show_rectangle_canvas=True, show_result=True, show_homography=True)
+            self.showParams(show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True, show_homography=True)
         else:
-            self.showParams(show_canny=False, show_rectangle_canvas=False, show_result=False, show_homography=False)
+            self.showParams(show_canny=False, show_rectangle_canvas=False, show_corners=False, show_previous_corners=False, show_homography=False)
 
-    def showParams(self, show_canny=True, show_rectangle_canvas=True, show_result=True, show_homography=True):
+    def showParams(self, show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True, show_homography=True):
         """
         Set show parameters
         :param show_canny: show canny detected edges
         :param show_rectangle_canvas: show detected rectangle canvas
-        :param show_result: show result
+        :param show_corners: show detected corners
+        :param show_previous_corners: show previous detected corners
         :param show_homography: show homography
         """
         self._show_canny = show_canny
         self._show_rectangle_canvas = show_rectangle_canvas
-        self._show_corners = show_result
+        self._show_previous_corners = show_previous_corners
+        self._show_corners = show_corners
         self.show_homography = show_homography
 
     def extractFeatures(self):
         """
         Feature matching and homography check
-        :param show_params: if True show all results
         :return:
         """
 
@@ -46,10 +47,11 @@ class FeatureMatcher:
         tot_frames = len(list_moving)
 
         img = cv2.imread(self.frames_moving_folder_path + "/frame_0.png")
-        self._draw_rectangle_shape(img)
+        default_shape = self._draw_rectangle_shape(img)
 
         dataset = []
         previous_second_corner = None
+        previous_third_corner = None
         for i in range(0, tot_frames):
             # Read the query image
             filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
@@ -75,6 +77,9 @@ class FeatureMatcher:
             # draw only the longest contour (bigger rectangle)
             rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
             cnts = self._findContours(canny, True, show_contours=False)
+            if cnts is None:
+                ut.console_log("Error: No contours detected", 'e')
+                continue
 
             cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
 
@@ -100,14 +105,14 @@ class FeatureMatcher:
 
             distances_default = []
             distances_second = []
+            distances_third = []
             for c in range(0, len(corners)):
                 x, y = corners[c].ravel()
                 # calculate for each corner the distance between default corner
                 distance_default = ut.euclidean_distance(x, y, default_corner[0], default_corner[1])
                 if distance_default > 0:
                     cv2.circle(img, (x, y), 1, cst.COLOR_RED, 10)
-                    cv2.putText(img, str(distance_default), (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, cst.COLOR_RED,
-                                2, cv2.LINE_AA)
+                    # cv2.putText(img, str(distance_default), (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, cst.COLOR_RED, 2, cv2.LINE_AA)
                     distances_default.append(dict(index=c, point=(x, y), distance=distance_default))
                     # calculate the distance between points and previous second-corner point
                     if previous_second_corner is not None:
@@ -115,12 +120,40 @@ class FeatureMatcher:
                                                                 previous_second_corner[0],
                                                                 previous_second_corner[1])
                         distances_second.append(dict(index=c, point=(x, y), distance=distance_second))
+                    if previous_third_corner is not None:
+                        distance_third = ut.euclidean_distance(x, y,
+                                                                previous_third_corner[0],
+                                                                previous_third_corner[1])
+                        distances_third.append(dict(index=c, point=(x, y), distance=distance_third))
+
+            distances_default = sorted(distances_default, key=lambda item: item['distance'])
+
+            if self._show_previous_corners:
+                if previous_second_corner is not None:
+                    cv2.circle(img, previous_second_corner, 1, cst.COLOR_PURPLE, 10)
+                if previous_third_corner is not None:
+                    cv2.circle(img, previous_third_corner, 1, cst.COLOR_PURPLE, 10)
 
             # search for second-corner
-            if previous_second_corner is not None:
-                cv2.circle(img, previous_second_corner, 1, cst.COLOR_PURPLE, 10)
-            second_corner = self.findSecondCorner(img, distances_default, distances_second)
+            second_corner, distances_default = self.findCorner(distances_second, distances_default)
+            cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 10)
             previous_second_corner = second_corner
+
+            # search for third-corner
+            third_corner, distances_default = self.findCorner(distances_third, distances_default)
+            cv2.circle(img, third_corner, 1, cst.COLOR_YELLOW, 10)
+            previous_third_corner = third_corner
+
+            fourth_corner = None
+            # search for fourth-corner
+            for corner in corners:
+                x, y = corner.ravel()
+                if x != default_corner[0] and y != default_corner[1] and x != second_corner[0] and y != second_corner[1] and x != third_corner[0] and y != third_corner[1]:
+                    fourth_corner = (x, y)
+                    cv2.circle(img, fourth_corner, 1, cst.COLOR_ORANGE, 10)
+                    break
+
+            # self._find_homography()
 
             if self._show_canny is True:
                 cv2.imshow('Canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
@@ -131,6 +164,18 @@ class FeatureMatcher:
             cv2.waitKey(0)
 
         return dataset
+
+    @staticmethod
+    def _find_homography(src_pts, dst_pts):
+
+        src_pts = np.float32(src_pts).reshape(-1, 1, 2)
+        dst_pts = np.float32(dst_pts).reshape(-1, 1, 2)
+
+        matrix, mask = cv2.findHomography(src_pts, dst_pts, None, 6)
+        if matrix is None:
+            return None
+
+        return matrix
 
     @staticmethod
     def findDefaultCorner(img, corners, show_point=True):
@@ -215,42 +260,38 @@ class FeatureMatcher:
         return False
 
     @staticmethod
-    def findSecondCorner(img, distances_default, distances_second, show_point=True):
+    def findCorner(distances_previous_point, distances_default):
         """
-        Calculate second-corner point
-        We will define a 'second' corner as a corner near to the default, and we will track it between frames
-        :param img: OpenCv image
-        :param distances_default: distances from the default_corner and the corners
-        :param distances_second: distances from the previous_second and the corners
-        :param show_point: if True, show the point on image
+        Search the corner point nearest to the previous
+        :param distances_previous_point: distances from the previous point and the given corners
+        :param distances_default: distances to the default corner, ordered by distance
+        :param show_corner: OpenCv image, if set draw the corner on the image
+        :param corner_color: color of the corner
         :return:
         """
 
-        distances_default = sorted(distances_default, key=lambda item: item['distance'])
-        second_corner = distances_default[0].get('point')
+        if len(distances_previous_point) <= 0:
+            # set current corner to the nearest to the default
+            current_corner = distances_default[0].get('point')
+            # remove current corner distance to avoid re-picking
+            distances_default.pop(0)
+        else:
+            # select the one nearest to the previous point as the current corner
+            distances_previous_point = sorted(distances_previous_point, key=lambda item: item['distance'])
+            current_corner = distances_previous_point[0].get('point')
 
-        if len(distances_second) <= 0:
-            if show_point:
-                cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 10)
-            return second_corner
-
-        # the one nearest to the previous_second and that is not the farthest from default is the current second-corner
-        distances_second = sorted(distances_second, key=lambda item: item['distance'])
-
-        second_corner = distances_second[0].get('point')
         '''
         k = 0
         found = False
         while k < len(distances_second) or found is False:
             corner_idx = distances_second[k].get('index')
             if distances_default[-1].get('index') != corner_idx:
-                second_corner = distances_second[k].get('point')
+                current_corner = distances_second[k].get('point')
                 found = True
             k += 1
         '''
-        if show_point:
-            cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 10)
-        return second_corner
+
+        return current_corner, distances_default
 
     @staticmethod
     def _findEdges(img):
@@ -307,7 +348,10 @@ class FeatureMatcher:
                 perimeters.append(peri)
 
         if max_only:
-            return np.array(cnt)
+            if cnt is None:
+                return None
+            else:
+                return np.array(cnt)
 
         return np.array(cnts_approx)
 

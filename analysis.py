@@ -205,7 +205,7 @@ def compute(video_name='coin1', sync=False):
     video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(video_name)
     frames_static_folder = cst.FRAMES_FOLDER_PATH + '/static_{}'.format(video_name)
     frames_moving_folder = cst.FRAMES_FOLDER_PATH + '/moving_{}'.format(video_name)
-    n_frames = 200
+    n_frames = 300
 
     if sync:
         sync_videos(video_static_path, video_moving_path, n_frames=n_frames)
@@ -221,7 +221,9 @@ def compute(video_name='coin1', sync=False):
     '''
 
     fm = FeatureMatcher(frames_moving_folder)
-    fm.showParams(show_canny=False, show_rectangle_canvas=True, show_result=True, show_homography=False)
+    fm.showParams(show_canny=False, show_rectangle_canvas=True,
+                  show_corners=True, show_previous_corners=False,
+                  show_homography=False)
     results = fm.extractFeatures()
 
     # write results on file
