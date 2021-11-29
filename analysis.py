@@ -111,13 +111,12 @@ def extract_video_frames(video_path, calibration_file_path, tot_frames, n_frames
     frame_skip = math.trunc((tot_frames - offset) / n_frames)  # skip threshold between frames to obtain n_frames
 
     fm = FeatureMatcher()
-    fm.showParams(show_canny=False, show_rectangle_canvas=True,
-                  show_corners=True, show_previous_corners=False,
-                  show_homography=False)
+    fm.showParams(show_canny=False, show_rectangle_canvas=False, show_default_shape=False,
+                  show_corners=True, show_previous_corners=False, show_homography=False)
 
     ret, frame = video.read()
     frame_new = ut.undistort_image(frame, matrix, distortion)
-    default_shape = fm.draw_rectangle_shape(frame_new)
+    default_shape, default_shape_points = fm.computeDefaultShape(frame_new)
 
     dataset = []
     for i in range(0, n_frames):
@@ -130,7 +129,7 @@ def extract_video_frames(video_path, calibration_file_path, tot_frames, n_frames
             continue
 
         frame_new = ut.undistort_image(frame, matrix, distortion)
-        result = fm.extractFeatures(frame_new, default_shape)
+        result = fm.extractFeatures(frame_new, default_shape, default_shape_points)
         if result is not False:
             dataset.append(result)
 
@@ -294,9 +293,8 @@ def compute(video_name='coin1', n_frames=300, sync=False, without_save=False):
         '''
 
         fm = FeatureMatcher()
-        fm.showParams(show_canny=False, show_rectangle_canvas=True,
-                      show_corners=True, show_previous_corners=False,
-                      show_homography=False)
+        fm.showParams(show_canny=False, show_rectangle_canvas=False, show_default_shape=False,
+                      show_corners=True, show_previous_corners=False, show_homography=True)
         results = fm.extractFeaturesFromFolder(frames_moving_folder)
 
     # write results on file
@@ -308,4 +306,4 @@ def compute(video_name='coin1', n_frames=300, sync=False, without_save=False):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    compute(sync=False, without_save=False)
+    compute(video_name='coin1', sync=False, without_save=False)

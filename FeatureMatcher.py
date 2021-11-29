@@ -14,27 +14,29 @@ class FeatureMatcher:
         self._previous_third_corner = None
         self._previous_second_corner = None
         if show_params is True:
-            self.showParams(show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True,
-                            show_homography=True)
+            self.showParams(show_canny=True, show_rectangle_canvas=True, show_default_shape=True,
+                            show_corners=True, show_previous_corners=True, show_homography=True)
         else:
-            self.showParams(show_canny=False, show_rectangle_canvas=False, show_corners=False,
-                            show_previous_corners=False, show_homography=False)
+            self.showParams(show_canny=False, show_rectangle_canvas=False, show_default_shape=False,
+                            show_corners=False, show_previous_corners=False, show_homography=False)
 
-    def showParams(self, show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True,
-                   show_homography=True):
+    def showParams(self, show_canny=True, show_rectangle_canvas=True, show_default_shape=True,
+                   show_corners=True, show_previous_corners=True, show_homography=True):
         """
         Set show parameters
         :param show_canny: show canny detected edges
         :param show_rectangle_canvas: show detected rectangle canvas
+        :param show_default_shape: show default rectangle shape
         :param show_corners: show detected corners
         :param show_previous_corners: show previous detected corners
         :param show_homography: show homography
         """
         self._show_canny = show_canny
         self._show_rectangle_canvas = show_rectangle_canvas
+        self._show_default_shape = show_default_shape
         self._show_previous_corners = show_previous_corners
         self._show_corners = show_corners
-        self.show_homography = show_homography
+        self._show_homography = show_homography
 
     def resetPreviousCorners(self):
         """
@@ -57,7 +59,7 @@ class FeatureMatcher:
         tot_frames = len(list_moving)
 
         img = cv2.imread(frames_moving_folder_path + "/frame_0.png")
-        default_shape = self.draw_rectangle_shape(img)
+        default_shape, default_shape_points = self.computeDefaultShape(img, self._show_default_shape)
 
         self.resetPreviousCorners()
         dataset = []
@@ -66,17 +68,18 @@ class FeatureMatcher:
             filename = frames_moving_folder_path + "/frame_{}.png".format(i)
             print("Frame n° ", i)
             img = cv2.imread(filename)
-            result = self.extractFeatures(img, default_shape)
+            result = self.extractFeatures(img, default_shape, default_shape_points)
             if result is not False:
                 dataset.append(result)
 
         return dataset
 
-    def extractFeatures(self, img, default_shape):
+    def extractFeatures(self, img, default_shape, default_shape_points):
         """
         Feature matching and homography check of given image
         :param img: OpenCv image: image to check
-        :param default_shape: OpenCv image: rectangle default shape to use into homography check
+        :param default_shape: OpenCv image: default rectangle
+        :param default_shape_points: points of the default rectangle to use into homography check
         :return:
         """
 
@@ -179,7 +182,12 @@ class FeatureMatcher:
                 cv2.circle(img, fourth_corner, 1, cst.COLOR_ORANGE, 10)
                 break
 
-        # self._find_homography()
+        dst_points = (default_corner, second_corner, third_corner, fourth_corner)
+        matrix, _ = self._find_homography(default_shape_points, dst_points)
+        if matrix is not None:
+            img_homography = cv2.warpPerspective(default_shape, matrix, (rectangle_canvas.shape[1], rectangle_canvas.shape[0]))
+            if self._show_homography:
+                cv2.imshow("Transformed", cv2.resize(img_homography, None, fx=0.5, fy=0.5))
 
         if self._show_canny is True:
             cv2.imshow('Canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
@@ -192,6 +200,30 @@ class FeatureMatcher:
         return data
 
     @staticmethod
+    def computeDefaultShape(img, show=False):
+        """
+        Create the rectangle shape
+        :param img: OpenCv image
+        :param show: if True, show the created shape
+        """
+        img_rectangle = np.zeros(img.shape, np.uint8)  # create empty image
+
+        top_left = (100, 100)
+        top_right = (570, 100)
+        bottom_left = (100, 570)
+        bottom_right = (570, 570)
+
+        # Draw the shape
+        cv2.rectangle(img_rectangle, top_left, bottom_right, (255, 255, 255), 2)
+        cv2.circle(img_rectangle, bottom_left, 1, cst.COLOR_BLUE, 10)
+        cv2.circle(img_rectangle, top_left, 1, cst.COLOR_GREEN, 10)
+
+        if show:
+            cv2.imshow('Shape', cv2.resize(img_rectangle, None, fx=0.6, fy=0.6))
+
+        return img_rectangle, (bottom_left, top_left, bottom_right, top_right)
+
+    @staticmethod
     def _find_homography(src_pts, dst_pts):
 
         src_pts = np.float32(src_pts).reshape(-1, 1, 2)
@@ -201,7 +233,7 @@ class FeatureMatcher:
         if matrix is None:
             return None
 
-        return matrix
+        return matrix, mask
 
     @staticmethod
     def findDefaultCorner(img, corners, show_point=True):
@@ -380,26 +412,3 @@ class FeatureMatcher:
                 return np.array(cnt)
 
         return np.array(cnts_approx)
-
-    @staticmethod
-    def draw_rectangle_shape(img, show=False):
-        """
-        Create the rectangle shape
-        :param img: OpenCv image
-        :param show: if True, show the created shape
-        """
-        img_rectangle = np.zeros(img.shape, np.uint8)  # create empty image
-
-        top_left = (100, 100)
-        top_right = (570, 100)
-        bottom_left = (100, 570)
-        bottom_right = (570, 570)
-
-        # Draw a rectangle
-        cv2.rectangle(img_rectangle, top_left, bottom_right, (255, 255, 255), 2)
-
-        cv2.circle(img_rectangle, bottom_left, 1, cst.COLOR_BLUE, 10)
-        cv2.circle(img_rectangle, top_left, 1, cst.COLOR_GREEN, 10)
-        if show:
-            cv2.imshow('Shape', cv2.resize(img_rectangle, None, fx=0.6, fy=0.6))
-        return img_rectangle
