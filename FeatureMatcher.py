@@ -7,12 +7,10 @@ import numpy as np
 
 
 class FeatureMatcher:
-    def __init__(self, frames_moving_folder_path, show_params=False):
+    def __init__(self, show_params=False):
         """
         Constructor
-        :param frames_moving_folder_path: path to the moving frames folder
         """
-        self.frames_moving_folder_path = frames_moving_folder_path
         if show_params is True:
             self.showParams(show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True, show_homography=True)
         else:
@@ -33,20 +31,20 @@ class FeatureMatcher:
         self._show_corners = show_corners
         self.show_homography = show_homography
 
-    def extractFeatures(self):
+    def extractFeatures(self, frames_moving_folder_path):
         """
         Feature matching and homography check
         :return:
         """
 
-        if not os.path.isdir(self.frames_moving_folder_path):
+        if not os.path.isdir(frames_moving_folder_path):
             raise Exception('Moving folder not found!')
 
         # read frames from folders
-        list_moving = os.listdir(self.frames_moving_folder_path)
+        list_moving = os.listdir(frames_moving_folder_path)
         tot_frames = len(list_moving)
 
-        img = cv2.imread(self.frames_moving_folder_path + "/frame_0.png")
+        img = cv2.imread(frames_moving_folder_path + "/frame_0.png")
         default_shape = self._draw_rectangle_shape(img)
 
         dataset = []
@@ -54,7 +52,7 @@ class FeatureMatcher:
         previous_third_corner = None
         for i in range(0, tot_frames):
             # Read the query image
-            filename = self.frames_moving_folder_path + "/frame_{}.png".format(i)
+            filename = frames_moving_folder_path + "/frame_{}.png".format(i)
             print("Frame n° ", i)
             img = cv2.imread(filename)
             height, width, _ = img.shape

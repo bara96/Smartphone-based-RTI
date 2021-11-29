@@ -225,11 +225,11 @@ def compute(video_name='coin1', n_frames=300, sync=False):
     results = fm.extractFeatures(show_params=show_images, save_images=False)
     '''
 
-    fm = FeatureMatcher(frames_moving_folder)
+    fm = FeatureMatcher()
     fm.showParams(show_canny=False, show_rectangle_canvas=True,
                   show_corners=True, show_previous_corners=False,
                   show_homography=False)
-    results = fm.extractFeatures()
+    results = fm.extractFeatures(frames_moving_folder)
 
     # write results on file
     file_path = "assets/results_{}.pickle".format(video_name)
