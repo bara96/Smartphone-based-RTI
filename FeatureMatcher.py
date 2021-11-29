@@ -57,7 +57,7 @@ class FeatureMatcher:
         tot_frames = len(list_moving)
 
         img = cv2.imread(frames_moving_folder_path + "/frame_0.png")
-        default_shape = self._draw_rectangle_shape(img)
+        default_shape = self.draw_rectangle_shape(img)
 
         self.resetPreviousCorners()
         dataset = []
@@ -382,10 +382,11 @@ class FeatureMatcher:
         return np.array(cnts_approx)
 
     @staticmethod
-    def _draw_rectangle_shape(img, show=False):
+    def draw_rectangle_shape(img, show=False):
         """
         Create the rectangle shape
-        :param img:
+        :param img: OpenCv image
+        :param show: if True, show the created shape
         """
         img_rectangle = np.zeros(img.shape, np.uint8)  # create empty image
 
