@@ -195,17 +195,22 @@ def sync_videos(video_static_path, video_moving_path, n_frames=60):
                           offset=video_moving_offset)
 
 
-def compute(video_name='coin1', sync=False):
+def compute(video_name='coin1', n_frames=300, sync=False):
     """
     Main function
     :param video_name: name of the video to take
+    :param n_frames: n° of frames to detect
     :param sync: if True sync the videos and extract the frames
     """
     video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(video_name)
     video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(video_name)
     frames_static_folder = cst.FRAMES_FOLDER_PATH + '/static_{}'.format(video_name)
     frames_moving_folder = cst.FRAMES_FOLDER_PATH + '/moving_{}'.format(video_name)
-    n_frames = 200
+
+    # to get a good precision, we need at least 1/9 of the video frames
+    min_frames = int(ut.get_video_total_frames(video_moving_path) / 9)
+    if n_frames < min_frames:
+        n_frames = min_frames
 
     if sync:
         sync_videos(video_static_path, video_moving_path, n_frames=n_frames)
@@ -220,9 +225,11 @@ def compute(video_name='coin1', sync=False):
     results = fm.extractFeatures(show_params=show_images, save_images=False)
     '''
 
-    fm = FeatureMatcher(frames_moving_folder)
-    fm.showParams(show_canny=False, show_rectangle_canvas=True, show_result=True, show_homography=False)
-    results = fm.extractFeatures()
+    fm = FeatureMatcher()
+    fm.showParams(show_canny=False, show_rectangle_canvas=True,
+                  show_corners=True, show_previous_corners=False,
+                  show_homography=False)
+    results = fm.extractFeatures(frames_moving_folder)
 
     # write results on file
     file_path = "assets/results_{}.pickle".format(video_name)
