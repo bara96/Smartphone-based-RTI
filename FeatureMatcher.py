@@ -11,12 +11,17 @@ class FeatureMatcher:
         """
         Constructor
         """
+        self._previous_third_corner = None
+        self._previous_second_corner = None
         if show_params is True:
-            self.showParams(show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True, show_homography=True)
+            self.showParams(show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True,
+                            show_homography=True)
         else:
-            self.showParams(show_canny=False, show_rectangle_canvas=False, show_corners=False, show_previous_corners=False, show_homography=False)
+            self.showParams(show_canny=False, show_rectangle_canvas=False, show_corners=False,
+                            show_previous_corners=False, show_homography=False)
 
-    def showParams(self, show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True, show_homography=True):
+    def showParams(self, show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True,
+                   show_homography=True):
         """
         Set show parameters
         :param show_canny: show canny detected edges
@@ -31,12 +36,19 @@ class FeatureMatcher:
         self._show_corners = show_corners
         self.show_homography = show_homography
 
-    def extractFeatures(self, frames_moving_folder_path):
+    def resetPreviousCorners(self):
         """
-        Feature matching and homography check
+        Reset previous corners points
+        """
+        self._previous_third_corner = None
+        self._previous_second_corner = None
+
+    def extractFeaturesFromFolder(self, frames_moving_folder_path):
+        """
+        Extract features from folder images frames
+        :param frames_moving_folder_path:
         :return:
         """
-
         if not os.path.isdir(frames_moving_folder_path):
             raise Exception('Moving folder not found!')
 
@@ -47,121 +59,137 @@ class FeatureMatcher:
         img = cv2.imread(frames_moving_folder_path + "/frame_0.png")
         default_shape = self._draw_rectangle_shape(img)
 
+        self.resetPreviousCorners()
         dataset = []
-        previous_second_corner = None
-        previous_third_corner = None
         for i in range(0, tot_frames):
             # Read the query image
             filename = frames_moving_folder_path + "/frame_{}.png".format(i)
             print("Frame n° ", i)
             img = cv2.imread(filename)
-            height, width, _ = img.shape
-
-            ''' Image Enchanting '''
-            gray = ut.enchant_brightness_and_contrast(img)
-            gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
-            gray = 255 - gray
-            gray = ut.image_blur(gray, iterations=5)
-            # gray = ut.enchant_morphological(gray, [cv2.MORPH_CLOSE], iterations=1)
-
-            ''' Image Refinement'''
-            # find image edges
-            canny = self._findEdges(gray)
-
-            # refine all contours
-            cnts = self._findContours(canny)
-            cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
-
-            # draw only the longest contour (bigger rectangle)
-            rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
-            cnts = self._findContours(canny, True, show_contours=False)
-            if cnts is None:
-                ut.console_log("Error: No contours detected", 'e')
-                continue
-
-            cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
-
-            ''' Corner Detection'''
-            # find corners
-            corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
-                                              maxCorners=4,
-                                              qualityLevel=0.1,
-                                              minDistance=30,
-                                              blockSize=20,
-                                              useHarrisDetector=False)
-
-            if corners is None or len(corners) != 4:
-                ut.console_log("Error: Wrong corners detected", 'e')
-                continue
-            corners = np.int0(corners)
-
-            # find the default corner
-            default_corner = self.findDefaultCorner(img, corners)
-            if default_corner is None:
-                ut.console_log("Error: Default corner not found", 'e')
-                continue
-
-            distances_default = []
-            distances_second = []
-            distances_third = []
-            for c in range(0, len(corners)):
-                x, y = corners[c].ravel()
-                # calculate for each corner the distance between default corner
-                distance_default = ut.euclidean_distance(x, y, default_corner[0], default_corner[1])
-                if distance_default > 0:
-                    cv2.circle(img, (x, y), 1, cst.COLOR_RED, 10)
-                    # cv2.putText(img, str(distance_default), (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, cst.COLOR_RED, 2, cv2.LINE_AA)
-                    distances_default.append(dict(index=c, point=(x, y), distance=distance_default))
-                    # calculate the distance between points and previous second-corner point
-                    if previous_second_corner is not None:
-                        distance_second = ut.euclidean_distance(x, y,
-                                                                previous_second_corner[0],
-                                                                previous_second_corner[1])
-                        distances_second.append(dict(index=c, point=(x, y), distance=distance_second))
-                    if previous_third_corner is not None:
-                        distance_third = ut.euclidean_distance(x, y,
-                                                                previous_third_corner[0],
-                                                                previous_third_corner[1])
-                        distances_third.append(dict(index=c, point=(x, y), distance=distance_third))
-
-            distances_default = sorted(distances_default, key=lambda item: item['distance'])
-
-            if self._show_previous_corners:
-                if previous_second_corner is not None:
-                    cv2.circle(img, previous_second_corner, 1, cst.COLOR_PURPLE, 10)
-                if previous_third_corner is not None:
-                    cv2.circle(img, previous_third_corner, 1, cst.COLOR_PURPLE, 10)
-
-            # search for second-corner
-            second_corner, distances_default = self.findCorner(distances_second, distances_default)
-            cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 10)
-            previous_second_corner = second_corner
-
-            # search for third-corner
-            third_corner, distances_default = self.findCorner(distances_third, distances_default)
-            cv2.circle(img, third_corner, 1, cst.COLOR_YELLOW, 10)
-            previous_third_corner = third_corner
-
-            fourth_corner = None
-            # search for fourth-corner
-            for corner in corners:
-                x, y = corner.ravel()
-                if x != default_corner[0] and y != default_corner[1] and x != second_corner[0] and y != second_corner[1] and x != third_corner[0] and y != third_corner[1]:
-                    fourth_corner = (x, y)
-                    cv2.circle(img, fourth_corner, 1, cst.COLOR_ORANGE, 10)
-                    break
-
-            # self._find_homography()
-
-            if self._show_canny is True:
-                cv2.imshow('Canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
-            if self._show_rectangle_canvas is True:
-                cv2.imshow("Rectangle Canvas", cv2.resize(rectangle_canvas, None, fx=0.6, fy=0.6))
-            if self._show_corners is True:
-                cv2.imshow('Corners', cv2.resize(img, None, fx=0.6, fy=0.6))
-            cv2.waitKey(0)
+            result = self.extractFeatures(img, default_shape)
+            if result is not False:
+                dataset.append(result)
 
         return dataset
+
+    def extractFeatures(self, img, default_shape):
+        """
+        Feature matching and homography check of given image
+        :param img: OpenCv image: image to check
+        :param default_shape: OpenCv image: rectangle default shape to use into homography check
+        :return:
+        """
+
+        data = []
+
+        height, width, _ = img.shape
+
+        ''' Image Enchanting '''
+        gray = ut.enchant_brightness_and_contrast(img)
+        gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
+        gray = 255 - gray
+        gray = ut.image_blur(gray, iterations=5)
+        # gray = ut.enchant_morphological(gray, [cv2.MORPH_CLOSE], iterations=1)
+
+        ''' Image Refinement'''
+        # find image edges
+        canny = self._findEdges(gray)
+
+        # refine all contours
+        cnts = self._findContours(canny)
+        cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # draw only the longest contour (bigger rectangle)
+        rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
+        cnts = self._findContours(canny, True, show_contours=False)
+        if cnts is None:
+            ut.console_log("Error: No contours detected", 'e')
+            return False
+
+        cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
+
+        ''' Corner Detection'''
+        # find corners
+        corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
+                                          maxCorners=4,
+                                          qualityLevel=0.1,
+                                          minDistance=30,
+                                          blockSize=20,
+                                          useHarrisDetector=False)
+
+        if corners is None or len(corners) != 4:
+            ut.console_log("Error: Wrong corners detected", 'e')
+            return False
+        corners = np.int0(corners)
+
+        # find the default corner
+        default_corner = self.findDefaultCorner(img, corners)
+        if default_corner is None:
+            ut.console_log("Error: Default corner not found", 'e')
+            return False
+
+        distances_default = []
+        distances_second = []
+        distances_third = []
+        for c in range(0, len(corners)):
+            x, y = corners[c].ravel()
+            # calculate for each corner the distance between default corner
+            distance_default = ut.euclidean_distance(x, y, default_corner[0], default_corner[1])
+            if distance_default > 0:
+                cv2.circle(img, (x, y), 1, cst.COLOR_RED, 10)
+                # cv2.putText(img, str(distance_default), (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, cst.COLOR_RED, 2, cv2.LINE_AA)
+                distances_default.append(dict(index=c, point=(x, y), distance=distance_default))
+                # calculate the distance between points and previous second-corner point
+                if self._previous_second_corner is not None:
+                    distance_second = ut.euclidean_distance(x, y,
+                                                            self._previous_second_corner[0],
+                                                            self._previous_second_corner[1])
+                    distances_second.append(dict(index=c, point=(x, y), distance=distance_second))
+                if self._previous_third_corner is not None:
+                    distance_third = ut.euclidean_distance(x, y,
+                                                           self._previous_third_corner[0],
+                                                           self._previous_third_corner[1])
+                    distances_third.append(dict(index=c, point=(x, y), distance=distance_third))
+
+        distances_default = sorted(distances_default, key=lambda item: item['distance'])
+
+        if self._show_previous_corners:
+            if self._previous_second_corner is not None:
+                cv2.circle(img, self._previous_second_corner, 1, cst.COLOR_PURPLE, 10)
+            if self._previous_third_corner is not None:
+                cv2.circle(img, self._previous_third_corner, 1, cst.COLOR_PURPLE, 10)
+
+        # search for second-corner
+        second_corner, distances_default = self.findCorner(distances_second, distances_default)
+        cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 10)
+        self._previous_second_corner = second_corner
+
+        # search for third-corner
+        third_corner, distances_default = self.findCorner(distances_third, distances_default)
+        cv2.circle(img, third_corner, 1, cst.COLOR_YELLOW, 10)
+        self._previous_third_corner = third_corner
+
+        fourth_corner = None
+        # search for fourth-corner
+        for corner in corners:
+            x, y = corner.ravel()
+            if x != default_corner[0] and y != default_corner[1] and x != second_corner[0] and y != second_corner[
+                1] and x != third_corner[0] and y != third_corner[1]:
+                fourth_corner = (x, y)
+                cv2.circle(img, fourth_corner, 1, cst.COLOR_ORANGE, 10)
+                break
+
+        # self._find_homography()
+
+        if self._show_canny is True:
+            cv2.imshow('Canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
+        if self._show_rectangle_canvas is True:
+            cv2.imshow("Rectangle Canvas", cv2.resize(rectangle_canvas, None, fx=0.6, fy=0.6))
+        if self._show_corners is True:
+            cv2.imshow('Corners', cv2.resize(img, None, fx=0.6, fy=0.6))
+        cv2.waitKey(0)
+
+        return data
 
     @staticmethod
     def _find_homography(src_pts, dst_pts):
