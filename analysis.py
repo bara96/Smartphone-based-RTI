@@ -58,7 +58,10 @@ def generate_video_default_frame(video_path, calibration_file_path, file_name='d
     :param calibration_file_path: path to the intrinsics calibration file
     :param file_name: file name to save the frame
     """
-    SAVE_PATH = cst.ASSETS_BASE_FOLDER + "/" + file_name + ".png"
+    SAVE_PATH = "assets/" + file_name + ".png"
+    if os.path.isfile(SAVE_PATH):
+        print("Default frame already exists \n")
+        return True
 
     matrix, distortion = ut.get_camera_intrinsics(calibration_file_path)
 
@@ -84,6 +87,8 @@ def generate_video_default_frame(video_path, calibration_file_path, file_name='d
     # cv2.waitKey(0)
     cv2.imwrite(SAVE_PATH, default_frame)
     cv2.destroyAllWindows()
+    print("Default frame generated \n")
+    return True
 
 
 def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_frames=0,
@@ -140,12 +145,10 @@ def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_f
         video_moving.set(cv2.CAP_PROP_POS_FRAMES, frame_moving_cursor)
 
     fm = FeatureMatcher()
-    fm.showParams(show_rectangle_canvas=True, show_default_shape=False,
-                  show_corners=True, show_previous_corners=False, show_homography=False)
+    fm.setShowParams(show_static_frame=True, show_moving_frame=True,
+                     show_rectangle_canvas=True, show_corners=True, show_previous_corners=False,
+                     show_homography=False, show_light_direction=True)
 
-    ret_static, frame_static = video_static.read()
-    frame_static = ut.undistort_image(frame_static, matrix_moving, distortion_moving)
-    default_shape, default_shape_points = fm.computeDefaultShape(frame_static)
 
     dataset = []
     for i in range(start_from_frame, max_frames - 1):
@@ -158,10 +161,11 @@ def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_f
 
         frame_static = ut.undistort_image(frame_static, matrix_static, distortion_static)
         frame_moving = ut.undistort_image(frame_moving, matrix_moving, distortion_moving)
-        result = fm.extractFeatures(static_img=frame_static, moving_img=frame_moving,
-                                    default_shape=default_shape, default_shape_points=default_shape_points)
-        if result is not False:
-            dataset.append(result)
+        static_shape, static_shape_points = fm.computeStaticShape(frame_static)
+        if static_shape_points is not None:
+            result = fm.extractFeatures(moving_img=frame_moving, static_img=static_shape, static_shape_points=static_shape_points, wait_key=False)
+            if result is not False:
+                dataset.append(result)
 
         # every 25 frames skip a frame of the static video to keep sync
         '''

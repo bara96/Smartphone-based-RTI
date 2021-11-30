@@ -15,27 +15,33 @@ class FeatureMatcher:
         self._previous_second_corner = None
         self._previous_third_corner = None
         if show_params is True:
-            self.showParams(show_rectangle_canvas=True, show_default_shape=True,
-                            show_corners=True, show_previous_corners=True, show_homography=True)
+            self.setShowParams(show_static_frame=True, show_moving_frame=True, show_rectangle_canvas=True,
+                               show_corners=True, show_previous_corners=True, show_homography=True,
+                               show_light_direction=True)
         else:
-            self.showParams(show_rectangle_canvas=False, show_default_shape=False,
-                            show_corners=False, show_previous_corners=False, show_homography=False)
+            self.setShowParams(show_static_frame=True, show_moving_frame=True, show_rectangle_canvas=False,
+                               show_corners=False, show_previous_corners=False, show_homography=False,
+                               show_light_direction=False)
 
-    def showParams(self, show_rectangle_canvas=True, show_default_shape=True,
-                   show_corners=True, show_previous_corners=True, show_homography=True):
+    def setShowParams(self, show_static_frame=True, show_moving_frame=True, show_rectangle_canvas=True,
+                      show_corners=True, show_previous_corners=True, show_homography=True, show_light_direction=True):
         """
         Set show parameters
-        :param show_rectangle_canvas: show detected rectangle canvas
-        :param show_default_shape: show default rectangle shape
-        :param show_corners: show detected corners
+        :param show_static_frame: show default rectangle shape
+        :param show_moving_frame: show default rectangle shape
+        :param show_rectangle_canvas: show detected rectangles canvas on both images
+        :param show_corners: show detected corners on both images
         :param show_previous_corners: show previous detected corners
-        :param show_homography: show homography
+        :param show_homography: show homography between static and moving frames
+        :param show_light_direction: show light direction
         """
-        self._show_rectangle_canvas = show_rectangle_canvas
-        self._show_default_shape = show_default_shape
-        self._show_previous_corners = show_previous_corners
+        self._show_static_frame = show_static_frame
+        self._show_moving_frame = show_moving_frame
+        self._show_rectangles_canvas = show_rectangle_canvas
         self._show_corners = show_corners
+        self._show_previous_corners = show_previous_corners
         self._show_homography = show_homography
+        self._show_light_direction = show_light_direction
 
     def resetPreviousCorners(self):
         """
@@ -44,15 +50,20 @@ class FeatureMatcher:
         self._previous_third_corner = None
         self._previous_second_corner = None
 
-    def extractFeatures(self, static_img, moving_img, default_shape, default_shape_points):
+    def extractFeatures(self, moving_img, static_img, static_shape_points, wait_key=False):
         """
         Feature matching and homography check of given image
-        :param static_img: OpenCv image
         :param moving_img: OpenCv image
-        :param default_shape: OpenCv image: default rectangle
-        :param default_shape_points: points of the default rectangle to use into homography check
+        :param static_img: OpenCv image: default rectangle
+        :param static_shape_points: points of the default rectangle to use into homography check
+        :param wait_key: specify if wait to user input or not when showing frames
         :return:
         """
+
+        if wait_key is False:
+            wait_key = 1
+        else:
+            wait_key = 0
 
         data = []
 
@@ -77,11 +88,11 @@ class FeatureMatcher:
         rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
         cnts = self._findContours(canny, True, show_contours=False)
         if cnts is None:
-            ut.console_log("Error: No contours detected", 'e')
+            ut.console_log("Error Moving: No contours detected", 'e')
             return False
 
         cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
-        if self._show_rectangle_canvas:
+        if self._show_rectangles_canvas:
             cv2.drawContours(moving_img, cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
 
         ''' Corner Detection'''
@@ -94,7 +105,7 @@ class FeatureMatcher:
                                           useHarrisDetector=False)
 
         if corners is None or len(corners) != 4:
-            ut.console_log("Error: Wrong corners detected", 'e')
+            ut.console_log("Error Moving: Wrong corners detected", 'e')
             return False
         corners = np.int0(corners)
 
@@ -108,13 +119,15 @@ class FeatureMatcher:
             min_distance = width
             for c in range(0, len(corners)):
                 x, y = corners[c].ravel()
+                # cv2.putText(img, "{}  {}".format(x, y), (x - 100, y - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 3, cv2.LINE_AA)
                 # calculate for each corner the distance between default corner
-                distance = ut.euclidean_distance(x, y, self._previous_default_corner[0], self._previous_default_corner[1])
+                distance = ut.euclidean_distance(x, y, self._previous_default_corner[0],
+                                                 self._previous_default_corner[1])
                 if distance < min_distance:
                     default_corner = (x, y)
                     min_distance = distance
         if default_corner is None:
-            ut.console_log("Error: Default corner not found", 'e')
+            ut.console_log("Error Moving: Default corner not found", 'e')
             return False
         self._previous_default_corner = default_corner
 
@@ -137,15 +150,18 @@ class FeatureMatcher:
         ''' Homography '''
         # find homography between moving and world
         dst_points = (default_corner, second_corner, third_corner, fourth_corner)
-        matrix, _ = self._findHomography(default_shape_points, dst_points)
+        matrix, _ = self._findHomography(static_shape_points, dst_points)
         if matrix is not None:
             if self._show_homography:
-                img_homography = cv2.warpPerspective(default_shape, matrix, (rectangle_canvas.shape[1], rectangle_canvas.shape[0]))
-                cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.6, fy=0.6))
+                img_homography = cv2.warpPerspective(static_img, matrix,
+                                                     (rectangle_canvas.shape[1], rectangle_canvas.shape[0]))
+                cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
 
-        cv2.imshow('Static Camera', cv2.resize(static_img, None, fx=0.3, fy=0.3))
-        cv2.imshow('Moving Camera', cv2.resize(moving_img, None, fx=0.5, fy=0.5))
-        cv2.waitKey(1)
+        if self._show_static_frame:
+            cv2.imshow('Static Camera', cv2.resize(static_img, None, fx=0.4, fy=0.4))
+        if self._show_moving_frame:
+            cv2.imshow('Moving Camera', cv2.resize(moving_img, None, fx=0.5, fy=0.5))
+        cv2.waitKey(wait_key)
 
         return data
 
@@ -201,29 +217,85 @@ class FeatureMatcher:
 
         return second_corner, third_corner, fourth_corner
 
-    @staticmethod
-    def computeDefaultShape(img, show=False):
+    def computeStaticShape(self, img):
         """
-        Create the rectangle shape
+        Search the static shape rectangle
         :param img: OpenCv image
-        :param show: if True, show the created shape
         """
-        img_rectangle = np.zeros(img.shape, np.uint8)  # create empty image
+        height, width, _ = img.shape
 
-        top_left = (100, 100)
-        top_right = (570, 100)
-        bottom_left = (100, 570)
-        bottom_right = (570, 570)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = 255 - gray
+        gray = ut.image_blur(gray, iterations=5)
 
-        # Draw the shape
-        cv2.rectangle(img_rectangle, top_left, bottom_right, (255, 255, 255), 2)
-        cv2.circle(img_rectangle, bottom_left, 1, cst.COLOR_BLUE, 10)
-        cv2.circle(img_rectangle, top_left, 1, cst.COLOR_GREEN, 10)
+        ''' Image Refinement'''
+        # find image edges
+        canny = FeatureMatcher._findEdges(gray)
 
-        if show:
-            cv2.imshow('Shape', cv2.resize(img_rectangle, None, fx=0.6, fy=0.6))
+        # refine all contours
+        cnts = self._findContours(canny)
+        cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
 
-        return img_rectangle, (bottom_left, top_left, bottom_right, top_right)
+        # draw only the longest contour (bigger rectangle)
+        rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
+        cnts = self._findContours(canny, True, show_contours=False)
+        if cnts is None:
+            ut.console_log("Error Static: No contours detected", 'e')
+            return False
+
+        cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
+        if self._show_rectangles_canvas:
+            cv2.drawContours(img, cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
+
+        ''' Corner Detection'''
+        # find corners
+        corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
+                                          maxCorners=4,
+                                          qualityLevel=0.1,
+                                          minDistance=30,
+                                          blockSize=20,
+                                          useHarrisDetector=False)
+
+        if corners is None or len(corners) != 4:
+            ut.console_log("Error Static: Wrong corners detected", 'e')
+            return img, None
+        corners = np.int0(corners)
+
+        default_corner = (width, 0)
+        # set an acceptance threshold in order to spot corners
+        corner_threshold = 10
+        for corner in corners:
+            x, y = corner.ravel()
+            if x < (default_corner[0] + corner_threshold) and y > (default_corner[1] - corner_threshold):
+                default_corner = (x, y)
+
+        # search for pre-defined corners
+        second_corner = None
+        third_corner = None
+        fourth_corner = None
+        for corner in corners:
+            x, y = corner.ravel()
+            # cv2.putText(img, "{}  {}".format(x, y), (x - 100, y - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 3, cv2.LINE_AA)
+            if x == default_corner[0] and y == default_corner[1]:
+                continue
+            if x < (default_corner[0] + corner_threshold):
+                second_corner = (x, y)
+            elif y > default_corner[1] - corner_threshold:
+                third_corner = (x, y)
+            else:
+                fourth_corner = (x, y)
+
+        if second_corner is None or third_corner is None or fourth_corner is None:
+            ut.console_log("Error Static: Wrong corners detected", 'e')
+            return img, None
+
+        if self._show_corners is True:
+            cv2.circle(img, default_corner, 1, cst.COLOR_BLUE, 10)
+            cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 10)
+            cv2.circle(img, third_corner, 1, cst.COLOR_YELLOW, 10)
+            cv2.circle(img, fourth_corner, 1, cst.COLOR_ORANGE, 10)
+
+        return img, (default_corner, second_corner, third_corner, fourth_corner)
 
     @staticmethod
     def _findHomography(src_pts, dst_pts):
@@ -398,8 +470,7 @@ class FeatureMatcher:
                     test_img = np.zeros(img.shape, np.uint8)  # create empty image from gray
                     cv2.drawContours(test_img, [c], -1, (255, 255, 255), 3, cv2.LINE_AA)
                     cv2.putText(test_img, "perimeter: {}".format(peri), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                                (255, 255, 255),
-                                2, cv2.LINE_AA)
+                                (255, 255, 255), 3, cv2.LINE_AA)
                     cv2.imshow("test{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
                 if peri > max_perimeter:
                     max_perimeter = peri
