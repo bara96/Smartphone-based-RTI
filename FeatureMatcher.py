@@ -50,12 +50,13 @@ class FeatureMatcher:
         self._previous_third_corner = None
         self._previous_second_corner = None
 
-    def extractFeatures(self, moving_img, static_img, static_shape_points, wait_key=False):
+    def extractFeatures(self, moving_img, static_img, static_shape_points, homography_static_world, wait_key=False):
         """
         Feature matching and homography check of given image
         :param moving_img: OpenCv image
         :param static_img: OpenCv image: default rectangle
         :param static_shape_points: points of the default rectangle to use into homography check
+        :param homography_static_world: homography matrix between static frame and world
         :param wait_key: specify if wait to user input or not when showing frames
         :return:
         """
@@ -150,14 +151,15 @@ class FeatureMatcher:
 
         ''' Homography '''
         # find homography between moving and world
+        world_img, world_shape_points = self.getWorldRectangleShape(static_img)
         moving_shape_points = (default_corner, second_corner, third_corner, fourth_corner)
-        matrix, _ = ut.find_homography(moving_shape_points, static_shape_points)
-        if matrix is not None:
-            self._getStaticPixelsIntensity(static_img, static_shape_points)
+        homography_moving_world, _ = ut.find_homography(moving_shape_points, world_shape_points)
+        if homography_moving_world is not None:
+            # self._getStaticPixelsIntensity(static_img, static_shape_points)
 
             if self._show_homography:
-                img_homography = cv2.warpPerspective(moving_img, matrix,
-                                                     (static_img.shape[1], static_img.shape[0]))
+                img_homography = cv2.warpPerspective(moving_img, homography_moving_world,
+                                                     (world_img.shape[1], world_img.shape[0]))
                 cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
 
             camera_position = ut.find_pose_PNP(static_shape_points, moving_shape_points, cst.INTRINSICS_MOVING_PATH)
@@ -252,6 +254,29 @@ class FeatureMatcher:
             cv2.circle(img, fourth_corner, 1, cst.COLOR_ORANGE, 20)
 
         return img, (default_corner, second_corner, third_corner, fourth_corner)
+
+    @staticmethod
+    def getWorldRectangleShape(img, show_shape=False):
+        """
+        Get the world rectangle shape
+        :param img: OpenCv image
+        :param show_shape: if True, show the created shape
+        """
+        img_rectangle = np.zeros(img.shape, np.uint8)  # create empty image
+
+        top_left = (100, 100)
+        top_right = (570, 100)
+        bottom_left = (100, 570)
+        bottom_right = (570, 570)
+
+        # Draw a rectangle
+        cv2.rectangle(img_rectangle, top_left, bottom_right, (255, 255, 255), 2)
+
+        cv2.circle(img_rectangle, bottom_left, 1, cst.COLOR_BLUE, 10)
+        cv2.circle(img_rectangle, top_left, 1, cst.COLOR_GREEN, 10)
+        if show_shape:
+            cv2.imshow('Shape', cv2.resize(img_rectangle, None, fx=0.6, fy=0.6))
+        return img_rectangle, (bottom_left, top_left, bottom_right, top_right)
 
     def _findCorners(self, corners, default_corner):
         """
@@ -483,6 +508,7 @@ class FeatureMatcher:
 
     @staticmethod
     def _getStaticPixelsIntensity(static_img, static_shape_points, area_diameter=300):
+        from matplotlib import pyplot as plt
         h, w, _ = static_img.shape
         corners = np.array(static_shape_points)
         x_center, y_center = FeatureMatcher._getCornersCenter(corners, h, w)
@@ -499,5 +525,10 @@ class FeatureMatcher:
             y_max = h - 1
 
         roi_img = static_img[y_min:y_max, x_min:x_max]
+        for i, col in enumerate(['b', 'g', 'r']):
+            hist = cv2.calcHist([roi_img], [i], None, [256], [0, 256])
+            plt.plot(hist, color=col)
+            plt.xlim([0, 256])
+        plt.show()
 
         return roi_img

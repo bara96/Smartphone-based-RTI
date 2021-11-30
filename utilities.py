@@ -367,6 +367,7 @@ def find_pose_PNP(src_points, dst_points, calibration_file_path):
     ret, rvecs, tvecs = cv2.solvePnP(src_points, dst_points, K, d)
     rotM = cv2.Rodrigues(rvecs)[0]
     camera_position = -np.matrix(rotM).T * np.matrix(tvecs)
+    # print(camera_position)
     # camera_position = -rotM.transpose() * tvecs
 
     return camera_position
