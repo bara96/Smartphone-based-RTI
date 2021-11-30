@@ -145,10 +145,10 @@ def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_f
         video_moving.set(cv2.CAP_PROP_POS_FRAMES, frame_moving_cursor)
 
     fm = FeatureMatcher()
+    # set show parameters for visual debug information
     fm.setShowParams(show_static_frame=True, show_moving_frame=True,
-                     show_rectangle_canvas=True, show_corners=True, show_previous_corners=False,
+                     show_rectangle_canvas=True, show_corners=True,
                      show_homography=False, show_light_direction=True)
-
 
     dataset = []
     for i in range(start_from_frame, max_frames - 1):

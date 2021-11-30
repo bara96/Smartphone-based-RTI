@@ -1,5 +1,6 @@
 # Import required modules
 # Utils misc functions
+import constants as cst
 import cv2
 import numpy as np
 import os
@@ -173,29 +174,6 @@ def enchant_morphological(image, params, iterations=1):
     return image
 
 
-def enchant_CLAHE(image):
-    """
-    Contrast Limited Adaptive Histogram Equalization
-    :param image: OpenCv image
-    :return:
-    """
-    # -----Converting image to LAB Color model-----------------------------------
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-
-    # -----Splitting the LAB image to different channels-------------------------
-    l, a, b = cv2.split(lab)
-
-    # -----Applying CLAHE to L-channel-------------------------------------------
-    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-    cl = clahe.apply(l)
-
-    # -----Merge the CLAHE enhanced L-channel with the a and b channel-----------
-    limg = cv2.merge((cl, a, b))
-
-    # -----Converting image from LAB Color model to RGB model--------------------
-    return cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
-
-
 def enchant_brightness_and_contrast(image, clip_hist_percent=1):
     """
     Automatic brightness and contrast optimization with optional histogram clipping
@@ -295,7 +273,7 @@ def image_fill(img, enlarge_percentage=1.5):
     return img_new
 
 
-def image_draw_circle(img, x, y, color=(0, 0, 255), radius=250, thickness=10):
+def image_draw_circle(img, x, y, color=cst.COLOR_RED, radius=250, thickness=10):
     """
     Draw a point into an image
     :param thickness: circle line thickness
@@ -321,15 +299,33 @@ def image_draw_circle(img, x, y, color=(0, 0, 255), radius=250, thickness=10):
     return cv2.circle(img, (x, y), radius=radius, color=color, thickness=thickness), x, y
 
 
-def find_pose_from_homography(H, K, img, show_position=True):
+def find_homography(src_pts, dst_pts):
+    """
+    Compute homography
+    :param src_pts:
+    :param dst_pts:
+    :return:
+    """
+    src_pts = np.float32(src_pts).reshape(-1, 1, 2)
+    dst_pts = np.float32(dst_pts).reshape(-1, 1, 2)
+
+    matrix, mask = cv2.findHomography(src_pts, dst_pts, None, 6)
+    if matrix is None:
+        return None
+
+    return matrix, mask
+
+
+def find_pose_from_homography(H, calibration_file_path):
     """
     Find R and T from homography
     :param H: is the homography matrix
-    :param K: is the camera calibration matrix
+    :param calibration_file_path: camera intrinsics path
     :return:
     T is translation
     R is rotation
     """
+    K, d = get_camera_intrinsics(calibration_file_path)
 
     H = H.T
     h1 = H[0]
@@ -347,29 +343,33 @@ def find_pose_from_homography(H, K, img, show_position=True):
     # debug code
     vector = -(R.transpose() * T)
 
-    x, y = vector[0][0], vector[0][1]  # red
-    x1, y1 = vector[1][0], vector[1][1]  # yellow
-    x2, y2 = vector[2][0], vector[2][1]  # purple
+    # x, y, z = vector[0][0], vector[0][1], vector[0][2]   # red
 
-    # x,y,z = np.dot(-np.transpose(R),T)
+    x, y, z = np.dot(-np.transpose(R), T)
 
-    train_img_new = img.copy()
-    x_scale, y_scale = 0.4, 0.4
+    return x, y, z
 
-    train_img_new, x, y = image_draw_circle(train_img_new, x, y, (0, 0, 255))
-    train_img_new, x1, y1 = image_draw_circle(train_img_new, x1, y1, (0, 255, 255))
-    train_img_new, x2, y2 = image_draw_circle(train_img_new, x2, y2, (255, 0, 255))
-    train_img_new = cv2.resize(train_img_new, None, fx=x_scale, fy=y_scale)
 
-    # print("x: ", x, "y: ", y)
-    print("x: ", round(x * x_scale), "y: ", round(y * y_scale))  # scaled values
-    print("x1: ", round(x1 * x_scale), "y1: ", round(y1 * y_scale))  # scaled values
-    print("x2: ", round(x2 * x_scale), "y2: ", round(y2 * y_scale))  # scaled values
+def find_pose_PNP(src_points, dst_points, calibration_file_path):
+    """
+    Solve PNP and use Rodrigues to find Camera world position
+    :param src_points: keypoints of the first image
+    :param dst_points: keypoints of the second image
+    :param calibration_file_path: camera intrinsics path
+    :return:
+    """
 
-    if show_position:
-        cv2.imshow("Camera Position", train_img_new)
+    K, d = get_camera_intrinsics(calibration_file_path)
 
-    return R, T
+    src_points = np.float32([(src_points[point][0], src_points[point][1], 0) for point in range(0, len(src_points))])
+    dst_points = np.float32([(dst_points[point][0], src_points[point][1]) for point in range(0, len(dst_points))])
+
+    ret, rvecs, tvecs = cv2.solvePnP(src_points, dst_points, K, d)
+    rotM = cv2.Rodrigues(rvecs)[0]
+    camera_position = -np.matrix(rotM).T * np.matrix(tvecs)
+    # camera_position = -rotM.transpose() * tvecs
+
+    return camera_position
 
 
 def get_pixel_variation(pixel1, pixel2):
@@ -450,7 +450,8 @@ def euclidean_distance(x1, y1, x2, y2):
     :param y2: 
     :return: 
     """
-    dist = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    # dist = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    dist = abs(x2 - x1) + abs(y2 - y1)
     return float(dist)
 
 
