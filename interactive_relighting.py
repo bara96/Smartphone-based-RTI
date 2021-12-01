@@ -1,8 +1,8 @@
 import cv2
 import constants as cst
-import utilities as ut
+from Utils import utilities as ut
 import os
-import numpy as np
+
 
 def Mouse_Event(event, x, y, flags, param):
     if event == cv2.EVENT_LBUTTONDOWN:

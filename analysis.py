@@ -1,9 +1,11 @@
 # Import required modules
 import constants as cst
+from Utils import audio_utils as aut
+from Utils import image_utils as iut
+from Utils import utilities as ut
 import os
 import cv2
 import math
-import utilities as ut
 from moviepy.editor import VideoFileClip
 from FeatureMatcher import FeatureMatcher
 
@@ -36,11 +38,11 @@ def get_audio_offset(video_static, video_moving):
     audio2.write_audiofile(audio2_path)
 
     # get the video shift
-    fs1, wave1 = ut.stereo_to_mono_wave(audio1_path)
-    fs2, wave2 = ut.stereo_to_mono_wave(audio2_path)
+    fs1, wave1 = aut.stereo_to_mono_wave(audio1_path)
+    fs2, wave2 = aut.stereo_to_mono_wave(audio2_path)
 
     # calculate and round the shift
-    offset = round(ut.find_audio_correlation(wave2, wave1) / fs1, 0)
+    offset = round(aut.find_audio_correlation(wave2, wave1) / fs1, 0)
 
     print("Current offset: {} \n".format(offset))
 
@@ -61,7 +63,7 @@ def generate_video_default_frame(video_path, calibration_file_path, file_name='d
     SAVE_PATH = "assets/" + file_name + ".png"
     if os.path.isfile(SAVE_PATH):
         print("Default frame already exists \n")
-        return True
+        return SAVE_PATH
 
     matrix, distortion = ut.get_camera_intrinsics(calibration_file_path)
 
@@ -74,7 +76,7 @@ def generate_video_default_frame(video_path, calibration_file_path, file_name='d
         if not ret:
             raise Exception('Null frame')
 
-        frame_new = ut.undistort_image(frame, matrix, distortion)
+        frame_new = iut.undistort_image(frame, matrix, distortion)
         mean_hv_ls = cv2.mean(cv2.cvtColor(frame_new, cv2.COLOR_BGR2HSV))
         mean_brightness = mean_hv_ls[2] / 255
         # set as default image the one with brightness near 0.5
@@ -88,11 +90,13 @@ def generate_video_default_frame(video_path, calibration_file_path, file_name='d
     cv2.imwrite(SAVE_PATH, default_frame)
     cv2.destroyAllWindows()
     print("Default frame generated \n")
-    return True
+    return SAVE_PATH
 
 
-def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_frames=0,
-                         video_static_offset=0, video_moving_offset=0, start_from_frame=0):
+def extract_video_frames(static_video_path, moving_video_path,
+                         tot_frames, max_frames=0, start_from_frame=0,
+                         video_static_offset=0, video_moving_offset=0,
+                         default_frame_path="default.png"):
     """
     Get undistorted frames images from the video_static and extract features
     :param static_video_path: path to the video_static
@@ -102,6 +106,7 @@ def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_f
     :param video_static_offset: starting offset for the static video
     :param video_moving_offset: starting offset for the moving video
     :param start_from_frame: starting a given frame
+    :param default_frame_path: name of the default frame file
     :return:
     """
 
@@ -150,6 +155,10 @@ def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_f
                      show_rectangle_canvas=True, show_corners=True,
                      show_homography=False, show_light_direction=True)
 
+    # compute static shape detection only on default frame, since they've all the same homography
+    frame_default = cv2.imread(default_frame_path)
+    static_shape_cnts, static_shape_points = fm.computeStaticShape(frame_default)
+
     dataset = []
     for i in range(start_from_frame, max_frames - 1):
         print("Frame n° ", i)
@@ -159,15 +168,13 @@ def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_f
             ut.console_log('Error: Null frame', 'e')
             continue
 
-        frame_static = ut.undistort_image(frame_static, matrix_static, distortion_static)
-        frame_moving = ut.undistort_image(frame_moving, matrix_moving, distortion_moving)
-        static_shape, static_shape_points = fm.computeStaticShape(frame_static)
-        if static_shape_points is not None:
-            result = fm.extractFeatures(moving_img=frame_moving, static_img=static_shape,
-                                        static_shape_points=static_shape_points,
-                                        wait_key=True)
-            if result is not False:
-                dataset.append(result)
+        frame_static = iut.undistort_image(frame_static, matrix_static, distortion_static)
+        frame_moving = iut.undistort_image(frame_moving, matrix_moving, distortion_moving)
+        result = fm.extractFeatures(moving_img=frame_moving, static_img=frame_static,
+                                    static_shape_points=static_shape_points, static_shape_cnts=static_shape_cnts,
+                                    wait_key=False)
+        if result is not False:
+            dataset.append(result)
 
         # every 25 frames skip a frame of the static video to keep sync
         '''
@@ -208,16 +215,8 @@ def sync_videos(video_static_path, video_moving_path):
     # get offset of the two video
     video_static_offset, video_moving_offset = get_audio_offset(video_static, video_moving)
 
-    # extract filename from video path in order to create a directory for video frames
-    video_default_frame = 'default_' + os.path.splitext(os.path.basename(video_static_path))[0]
-
     # total number of frames of shortest video
-    tot_frames = min(ut.get_video_total_frames(video_static_path), ut.get_video_total_frames(video_moving_path))
-
-    # generate default frame from static video
-    generate_video_default_frame(video_path=video_static_path,
-                                 calibration_file_path=cst.INTRINSICS_STATIC_PATH,
-                                 file_name=video_default_frame)
+    tot_frames = min(iut.get_video_total_frames(video_static_path), iut.get_video_total_frames(video_moving_path))
 
     return video_static_offset, video_moving_offset, tot_frames
 
@@ -232,13 +231,22 @@ def compute(video_name='coin1'):
 
     # extract features directly from video, without saving frame images
     video_static_offset, video_moving_offset, tot_frames = sync_videos(video_static_path, video_moving_path)
+
+    # extract filename from video path in order to create a directory for video frames
+    default_frame_name = 'default_' + os.path.splitext(os.path.basename(video_static_path))[0]
+    # generate default frame from static video
+    default_frame_path = generate_video_default_frame(video_path=video_static_path,
+                                 calibration_file_path=cst.INTRINSICS_STATIC_PATH,
+                                 file_name=default_frame_name)
+
     results = extract_video_frames(static_video_path=video_static_path,
                                    moving_video_path=video_moving_path,
                                    tot_frames=tot_frames,
                                    max_frames=300,
                                    video_moving_offset=video_moving_offset,
                                    video_static_offset=video_static_offset,
-                                   start_from_frame=0)
+                                   start_from_frame=0,
+                                   default_frame_path=default_frame_path)
 
     # write results on file
     file_path = "assets/results_{}.pickle".format(video_name)
