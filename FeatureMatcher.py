@@ -11,202 +11,343 @@ class FeatureMatcher:
         """
         Constructor
         """
+        self._previous_default_corner = None
+        self._previous_second_corner = None
+        self._previous_third_corner = None
         if show_params is True:
-            self.showParams(show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True, show_homography=True)
+            self.setShowParams(show_static_frame=True, show_moving_frame=True, show_rectangle_canvas=True,
+                               show_corners=True, show_previous_corners=True, show_homography=True,
+                               show_light_direction=True)
         else:
-            self.showParams(show_canny=False, show_rectangle_canvas=False, show_corners=False, show_previous_corners=False, show_homography=False)
+            self.setShowParams(show_static_frame=True, show_moving_frame=True, show_rectangle_canvas=False,
+                               show_corners=False, show_previous_corners=False, show_homography=False,
+                               show_light_direction=False)
 
-    def showParams(self, show_canny=True, show_rectangle_canvas=True, show_corners=True, show_previous_corners=True, show_homography=True):
+    def setShowParams(self, show_static_frame=True, show_moving_frame=True, show_rectangle_canvas=False,
+                      show_corners=False, show_previous_corners=False, show_homography=False, show_light_direction=False):
         """
         Set show parameters
-        :param show_canny: show canny detected edges
-        :param show_rectangle_canvas: show detected rectangle canvas
-        :param show_corners: show detected corners
+        :param show_static_frame: show default rectangle shape
+        :param show_moving_frame: show default rectangle shape
+        :param show_rectangle_canvas: show detected rectangles canvas on both images
+        :param show_corners: show detected corners on both images
         :param show_previous_corners: show previous detected corners
-        :param show_homography: show homography
+        :param show_homography: show homography between static and moving frames
+        :param show_light_direction: show light direction
         """
-        self._show_canny = show_canny
-        self._show_rectangle_canvas = show_rectangle_canvas
-        self._show_previous_corners = show_previous_corners
+        self._show_static_frame = show_static_frame
+        self._show_moving_frame = show_moving_frame
+        self._show_rectangles_canvas = show_rectangle_canvas
         self._show_corners = show_corners
-        self.show_homography = show_homography
+        self._show_previous_corners = show_previous_corners
+        self._show_homography = show_homography
+        self._show_light_direction = show_light_direction
 
-    def extractFeatures(self, frames_moving_folder_path):
+    def resetPreviousCorners(self):
         """
-        Feature matching and homography check
+        Reset previous corners points
+        """
+        self._previous_third_corner = None
+        self._previous_second_corner = None
+
+    def extractFeatures(self, moving_img, static_img, static_shape_points, wait_key=False):
+        """
+        Feature matching and homography check of given image
+        :param moving_img: OpenCv image
+        :param static_img: OpenCv image: default rectangle
+        :param static_shape_points: points of the default rectangle to use into homography check
+        :param wait_key: specify if wait to user input or not when showing frames
         :return:
         """
 
-        if not os.path.isdir(frames_moving_folder_path):
-            raise Exception('Moving folder not found!')
+        if wait_key is False:
+            wait_key = 1
+        else:
+            wait_key = 0
 
-        # read frames from folders
-        list_moving = os.listdir(frames_moving_folder_path)
-        tot_frames = len(list_moving)
+        data = []
 
-        img = cv2.imread(frames_moving_folder_path + "/frame_0.png")
-        default_shape = self._draw_rectangle_shape(img)
+        height, width, _ = moving_img.shape
 
-        dataset = []
-        previous_second_corner = None
-        previous_third_corner = None
-        for i in range(0, tot_frames):
-            # Read the query image
-            filename = frames_moving_folder_path + "/frame_{}.png".format(i)
-            print("Frame n° ", i)
-            img = cv2.imread(filename)
-            height, width, _ = img.shape
+        ''' Image Enchanting '''
+        gray = ut.enchant_brightness_and_contrast(moving_img)
+        gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
+        gray = 255 - gray
+        gray = ut.image_blur(gray, iterations=5)
+        # gray = ut.enchant_morphological(gray, [cv2.MORPH_CLOSE], iterations=1)
 
-            ''' Image Enchanting '''
-            gray = ut.enchant_brightness_and_contrast(img)
-            gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
-            gray = 255 - gray
-            gray = ut.image_blur(gray, iterations=5)
-            # gray = ut.enchant_morphological(gray, [cv2.MORPH_CLOSE], iterations=1)
+        ''' Image Refinement'''
+        # find image edges
+        canny = self._findEdges(gray)
 
-            ''' Image Refinement'''
-            # find image edges
-            canny = self._findEdges(gray)
+        # refine all contours
+        cnts = self._findContours(canny)
+        cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
 
-            # refine all contours
-            cnts = self._findContours(canny)
-            cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
+        # draw only the longest contour (bigger rectangle)
+        rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
+        cnts = self._findContours(canny, True, show_contours=False)
+        if cnts is None:
+            ut.console_log("Error Moving: No contours detected", 'e')
+            return False
 
-            # draw only the longest contour (bigger rectangle)
-            rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
-            cnts = self._findContours(canny, True, show_contours=False)
-            if cnts is None:
-                ut.console_log("Error: No contours detected", 'e')
-                continue
+        cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
+        if self._show_rectangles_canvas:
+            cv2.drawContours(moving_img, cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
 
-            cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
+        ''' Corner Detection'''
+        # find corners
+        corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
+                                          maxCorners=4,
+                                          qualityLevel=0.1,
+                                          minDistance=30,
+                                          blockSize=20,
+                                          useHarrisDetector=False)
 
-            ''' Corner Detection'''
-            # find corners
-            corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
-                                              maxCorners=4,
-                                              qualityLevel=0.1,
-                                              minDistance=30,
-                                              blockSize=20,
-                                              useHarrisDetector=False)
+        if corners is None or len(corners) != 4:
+            ut.console_log("Error Moving: Wrong corners detected", 'e')
+            return False
+        corners = np.int0(corners)
+        corners = corners.reshape((len(corners), 2))
 
-            if corners is None or len(corners) != 4:
-                ut.console_log("Error: Wrong corners detected", 'e')
-                continue
-            corners = np.int0(corners)
-
-            # find the default corner
-            default_corner = self.findDefaultCorner(img, corners)
-            if default_corner is None:
-                ut.console_log("Error: Default corner not found", 'e')
-                continue
-
-            distances_default = []
-            distances_second = []
-            distances_third = []
-            for c in range(0, len(corners)):
-                x, y = corners[c].ravel()
-                # calculate for each corner the distance between default corner
-                distance_default = ut.euclidean_distance(x, y, default_corner[0], default_corner[1])
-                if distance_default > 0:
-                    cv2.circle(img, (x, y), 1, cst.COLOR_RED, 10)
-                    # cv2.putText(img, str(distance_default), (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, cst.COLOR_RED, 2, cv2.LINE_AA)
-                    distances_default.append(dict(index=c, point=(x, y), distance=distance_default))
-                    # calculate the distance between points and previous second-corner point
-                    if previous_second_corner is not None:
-                        distance_second = ut.euclidean_distance(x, y,
-                                                                previous_second_corner[0],
-                                                                previous_second_corner[1])
-                        distances_second.append(dict(index=c, point=(x, y), distance=distance_second))
-                    if previous_third_corner is not None:
-                        distance_third = ut.euclidean_distance(x, y,
-                                                                previous_third_corner[0],
-                                                                previous_third_corner[1])
-                        distances_third.append(dict(index=c, point=(x, y), distance=distance_third))
-
-            distances_default = sorted(distances_default, key=lambda item: item['distance'])
-
-            if self._show_previous_corners:
-                if previous_second_corner is not None:
-                    cv2.circle(img, previous_second_corner, 1, cst.COLOR_PURPLE, 10)
-                if previous_third_corner is not None:
-                    cv2.circle(img, previous_third_corner, 1, cst.COLOR_PURPLE, 10)
-
-            # search for second-corner
-            second_corner, distances_default = self.findCorner(distances_second, distances_default)
-            cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 10)
-            previous_second_corner = second_corner
-
-            # search for third-corner
-            third_corner, distances_default = self.findCorner(distances_third, distances_default)
-            cv2.circle(img, third_corner, 1, cst.COLOR_YELLOW, 10)
-            previous_third_corner = third_corner
-
-            fourth_corner = None
-            # search for fourth-corner
+        # find the default corner
+        default_corner = None
+        if self._previous_default_corner is None:
+            # if there isn't a previous point calculate by searching the white circle
+            default_corner = self._findDefaultCorner(moving_img, corners)
+        else:
+            # if there is a previous point calculate by distance
+            min_distance = width
             for corner in corners:
-                x, y = corner.ravel()
-                if x != default_corner[0] and y != default_corner[1] and x != second_corner[0] and y != second_corner[1] and x != third_corner[0] and y != third_corner[1]:
-                    fourth_corner = (x, y)
-                    cv2.circle(img, fourth_corner, 1, cst.COLOR_ORANGE, 10)
-                    break
+                x, y = corner
+                # cv2.putText(img, "{}  {}".format(x, y), (x - 100, y - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 3, cv2.LINE_AA)
+                # calculate for each corner the distance between default corner
+                distance = ut.euclidean_distance(x, y, self._previous_default_corner[0],
+                                                 self._previous_default_corner[1])
+                if distance < min_distance:
+                    default_corner = (x, y)
+                    min_distance = distance
+        if default_corner is None:
+            ut.console_log("Error Moving: Default corner not found", 'e')
+            return False
+        self._previous_default_corner = default_corner
 
-            # self._find_homography()
+        if self._show_previous_corners:
+            if self._previous_default_corner is not None:
+                cv2.circle(moving_img, self._previous_default_corner, 1, cst.COLOR_PURPLE, 20)
+            if self._previous_second_corner is not None:
+                cv2.circle(moving_img, self._previous_second_corner, 1, cst.COLOR_PURPLE, 20)
+            if self._previous_third_corner is not None:
+                cv2.circle(moving_img, self._previous_third_corner, 1, cst.COLOR_PURPLE, 20)
 
-            if self._show_canny is True:
-                cv2.imshow('Canny', cv2.resize(canny, None, fx=0.6, fy=0.6))
-            if self._show_rectangle_canvas is True:
-                cv2.imshow("Rectangle Canvas", cv2.resize(rectangle_canvas, None, fx=0.6, fy=0.6))
-            if self._show_corners is True:
-                cv2.imshow('Corners', cv2.resize(img, None, fx=0.6, fy=0.6))
-            cv2.waitKey(0)
+        # detect and track rectangle corners given the default corner
+        second_corner, third_corner, fourth_corner = self._findCorners(corners, default_corner)
+        if self._show_corners is True:
+            cv2.circle(moving_img, default_corner, 1, cst.COLOR_BLUE, 20)
+            cv2.circle(moving_img, second_corner, 1, cst.COLOR_GREEN, 20)
+            cv2.circle(moving_img, third_corner, 1, cst.COLOR_YELLOW, 20)
+            cv2.circle(moving_img, fourth_corner, 1, cst.COLOR_ORANGE, 20)
 
-        return dataset
+        ''' Homography '''
+        # find homography between moving and world
+        world_img, world_shape_points = self.getWorldRectangleShape(static_img)
+        moving_shape_points = (default_corner, second_corner, third_corner, fourth_corner)
+        homography_moving_world, _ = ut.find_homography(moving_shape_points, world_shape_points)
+        if homography_moving_world is not None:
+            # self._getStaticPixelsIntensity(static_img, static_shape_points)
 
-    @staticmethod
-    def _find_homography(src_pts, dst_pts):
+            if self._show_homography:
+                img_homography = cv2.warpPerspective(moving_img, homography_moving_world,
+                                                     (world_img.shape[1], world_img.shape[0]))
+                cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
 
-        src_pts = np.float32(src_pts).reshape(-1, 1, 2)
-        dst_pts = np.float32(dst_pts).reshape(-1, 1, 2)
+            # find camera pose
+            camera_pose = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
+            if self._show_light_direction:
+                camera_position = -np.matrix(camera_pose[0]).T * np.matrix(camera_pose[1])
+                ut.image_draw_circle(static_img, camera_position[0], camera_position[1], cst.COLOR_RED)
 
-        matrix, mask = cv2.findHomography(src_pts, dst_pts, None, 6)
-        if matrix is None:
-            return None
+        if self._show_static_frame:
+            cv2.imshow('Static Camera', cv2.resize(static_img, None, fx=0.4, fy=0.4))
+        if self._show_moving_frame:
+            cv2.imshow('Moving Camera', cv2.resize(moving_img, None, fx=0.5, fy=0.5))
+        cv2.waitKey(wait_key)
 
-        return matrix
+        return data
 
-    @staticmethod
-    def findDefaultCorner(img, corners, show_point=True):
+    def computeStaticShape(self, img):
         """
-        Find the default corner of the rectangle
-        The default corner is the nearest to the circle
+        Compute the static shape rectangle, return the 4 points
         :param img: OpenCv image
-        :param corners: corners of the rectangle
-        :param show_point: if True, show the point on image
-        :return:
         """
-        # search x and y bounds
-        max_x = 0
-        min_x = img.shape[1]
-        max_y = 0
-        min_y = img.shape[0]
+        height, width, _ = img.shape
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = 255 - gray
+        gray = ut.image_blur(gray, iterations=5)
+
+        ''' Image Refinement'''
+        # find image edges
+        canny = FeatureMatcher._findEdges(gray)
+
+        # refine all contours
+        cnts = self._findContours(canny)
+        cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # draw only the longest contour (bigger rectangle)
+        rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
+        cnts = self._findContours(canny, True, show_contours=False)
+        if cnts is None:
+            ut.console_log("Error Static: No contours detected", 'e')
+            return False
+
+        cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
+        if self._show_rectangles_canvas:
+            cv2.drawContours(img, cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
+
+        ''' Corner Detection'''
+        # find corners
+        corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
+                                          maxCorners=4,
+                                          qualityLevel=0.1,
+                                          minDistance=30,
+                                          blockSize=20,
+                                          useHarrisDetector=False)
+
+        if corners is None or len(corners) != 4:
+            ut.console_log("Error Static: Wrong corners detected", 'e')
+            return img, None
+        corners = np.int0(corners)
+        corners = corners.reshape((len(corners), 2))
+
+        default_corner = (width, 0)
+        # set an acceptance threshold in order to spot corners
+        corner_threshold = 10
+        for corner in corners:
+            x, y = corner
+            if x < (default_corner[0] + corner_threshold) and y > (default_corner[1] - corner_threshold):
+                default_corner = (x, y)
+
+        # search for pre-defined corners
+        second_corner = None
+        third_corner = None
+        fourth_corner = None
         for corner in corners:
             x, y = corner.ravel()
-            if x > max_x:
-                max_x = x
-            if x < min_x:
-                min_x = x
-            if y > max_y:
-                max_y = y
-            if y < min_y:
-                min_y = y
+            # cv2.putText(img, "{}  {}".format(x, y), (x - 100, y - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 3, cv2.LINE_AA)
+            if x == default_corner[0] and y == default_corner[1]:
+                continue
+            if x < (default_corner[0] + corner_threshold):
+                second_corner = (x, y)
+            elif y > default_corner[1] - corner_threshold:
+                third_corner = (x, y)
+            else:
+                fourth_corner = (x, y)
+
+        if second_corner is None or third_corner is None or fourth_corner is None:
+            ut.console_log("Error Static: Wrong corners detected", 'e')
+            return img, None
+
+        if self._show_corners is True:
+            cv2.circle(img, default_corner, 1, cst.COLOR_BLUE, 20)
+            cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 20)
+            cv2.circle(img, third_corner, 1, cst.COLOR_YELLOW, 20)
+            cv2.circle(img, fourth_corner, 1, cst.COLOR_ORANGE, 20)
+
+        return img, (default_corner, second_corner, third_corner, fourth_corner)
+
+    @staticmethod
+    def getWorldRectangleShape(img, show_shape=False):
+        """
+        Get the world rectangle shape
+        :param img: OpenCv image
+        :param show_shape: if True, show the created shape
+        """
+        img_rectangle = np.zeros(img.shape, np.uint8)  # create empty image
+
+        top_left = (100, 100)
+        top_right = (570, 100)
+        bottom_left = (100, 570)
+        bottom_right = (570, 570)
+
+        # Draw a rectangle
+        cv2.rectangle(img_rectangle, top_left, bottom_right, (255, 255, 255), 2)
+
+        cv2.circle(img_rectangle, bottom_left, 1, cst.COLOR_BLUE, 10)
+        cv2.circle(img_rectangle, top_left, 1, cst.COLOR_GREEN, 10)
+        if show_shape:
+            cv2.imshow('Shape', cv2.resize(img_rectangle, None, fx=0.6, fy=0.6))
+        return img_rectangle, (bottom_left, top_left, bottom_right, top_right)
+
+    def _findCorners(self, corners, default_corner):
+        """
+        Find rectangle corners given the default
+        :param corners:
+        :param default_corner:
+        :return:
+        """
+        distances_default = []
+        distances_second = []
+        distances_third = []
+        for c in range(0, len(corners)):
+            x, y = corners[c].ravel()
+            # calculate for each corner the distance between default corner
+            distance_default = ut.euclidean_distance(x, y, default_corner[0], default_corner[1])
+            if distance_default > 0:
+                # cv2.circle(img, (x, y), 1, cst.COLOR_RED, 10)
+                # cv2.putText(img, str(distance_default), (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, cst.COLOR_RED, 2, cv2.LINE_AA)
+                distances_default.append(dict(index=c, point=(x, y), distance=distance_default))
+                # calculate the distance between points and previous second-corner point
+                if self._previous_second_corner is not None:
+                    distance_second = ut.euclidean_distance(x, y,
+                                                            self._previous_second_corner[0],
+                                                            self._previous_second_corner[1])
+                    distances_second.append(dict(index=c, point=(x, y), distance=distance_second))
+                if self._previous_third_corner is not None:
+                    distance_third = ut.euclidean_distance(x, y,
+                                                           self._previous_third_corner[0],
+                                                           self._previous_third_corner[1])
+                    distances_third.append(dict(index=c, point=(x, y), distance=distance_third))
+
+        distances_default = sorted(distances_default, key=lambda item: item['distance'])
+
+        # search for second-corner
+        second_corner, distances_default = self._trackCorner(distances_second, distances_default)
+        self._previous_second_corner = second_corner
+
+        # search for third-corner
+        third_corner, distances_default = self._trackCorner(distances_third, distances_default)
+        self._previous_third_corner = third_corner
+
+        fourth_corner = None
+        # search for fourth-corner
+        for corner in corners:
+            x, y = corner.ravel()
+            if (x != default_corner[0] or y != default_corner[1]) \
+                    and (x != second_corner[0] or y != second_corner[1]) \
+                    and (x != third_corner[0] or y != third_corner[1]):
+                fourth_corner = (x, y)
+                break
+
+        return second_corner, third_corner, fourth_corner
+
+    @staticmethod
+    def _findDefaultCorner(img, corners):
+        """
+        Find the default corner of the rectangle
+        The default corner is the nearest to the circle into the shape
+        :param img: OpenCv image
+        :param corners: corners of the rectangle
+        :return:
+        """
 
         # search default point
-        show_img = None  # img.copy()
+        show_img = None
+        # show_img = img.copy() # debug
         default_corner = None
         min_distance = 100
-        x_median = round(max_x - (max_x - min_x) / 2)
-        y_median = round(max_y - (max_y - min_y) / 2)
+        height, width, _ = img.shape
+        x_median, y_median = FeatureMatcher._getCornersCenter(corners, height, width)
         for corner in corners:
             x, y = corner.ravel()
             distance = FeatureMatcher._searchWhiteBorder(img,
@@ -221,10 +362,37 @@ class FeatureMatcher:
                 default_corner = (x, y)
                 min_distance = distance
 
-        if show_point:
-            cv2.circle(img, default_corner, 1, cst.COLOR_BLUE, 10)
-
         return default_corner
+
+    @staticmethod
+    def _getCornersCenter(corners, height, width):
+        """
+        Get the center point between corners
+        :param corners: corners points of the shape
+        :param width: width of the OpenCv image
+        :param height: height of the OpenCv image
+        :rtype: object
+        """
+        # search x and y bounds
+        max_x = 0
+        min_x = width
+        max_y = 0
+        min_y = height
+        for corner in corners:
+            x, y = corner
+            if x > max_x:
+                max_x = x
+            if x < min_x:
+                min_x = x
+            if y > max_y:
+                max_y = y
+            if y < min_y:
+                min_y = y
+
+        x_median = round(max_x - (max_x - min_x) / 2)
+        y_median = round(max_y - (max_y - min_y) / 2)
+
+        return x_median, y_median
 
     @staticmethod
     def _searchWhiteBorder(img, x_start, y_start, x_destination, y_destination, limit=1000, show_img=None):
@@ -258,13 +426,11 @@ class FeatureMatcher:
         return False
 
     @staticmethod
-    def findCorner(distances_previous_point, distances_default):
+    def _trackCorner(distances_previous_point, distances_default):
         """
-        Search the corner point nearest to the previous
+        Track the corner point nearest to the previous
         :param distances_previous_point: distances from the previous point and the given corners
         :param distances_default: distances to the default corner, ordered by distance
-        :param show_corner: OpenCv image, if set draw the corner on the image
-        :param corner_color: color of the corner
         :return:
         """
 
@@ -277,17 +443,6 @@ class FeatureMatcher:
             # select the one nearest to the previous point as the current corner
             distances_previous_point = sorted(distances_previous_point, key=lambda item: item['distance'])
             current_corner = distances_previous_point[0].get('point')
-
-        '''
-        k = 0
-        found = False
-        while k < len(distances_second) or found is False:
-            corner_idx = distances_second[k].get('index')
-            if distances_default[-1].get('index') != corner_idx:
-                current_corner = distances_second[k].get('point')
-                found = True
-            k += 1
-        '''
 
         return current_corner, distances_default
 
@@ -336,8 +491,7 @@ class FeatureMatcher:
                     test_img = np.zeros(img.shape, np.uint8)  # create empty image from gray
                     cv2.drawContours(test_img, [c], -1, (255, 255, 255), 3, cv2.LINE_AA)
                     cv2.putText(test_img, "perimeter: {}".format(peri), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                                (255, 255, 255),
-                                2, cv2.LINE_AA)
+                                (255, 255, 255), 3, cv2.LINE_AA)
                     cv2.imshow("test{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
                 if peri > max_perimeter:
                     max_perimeter = peri
@@ -354,23 +508,28 @@ class FeatureMatcher:
         return np.array(cnts_approx)
 
     @staticmethod
-    def _draw_rectangle_shape(img, show=False):
-        """
-        Create the rectangle shape
-        :param img:
-        """
-        img_rectangle = np.zeros(img.shape, np.uint8)  # create empty image
+    def _getStaticPixelsIntensity(static_img, static_shape_points, area_diameter=300):
+        from matplotlib import pyplot as plt
+        h, w, _ = static_img.shape
+        corners = np.array(static_shape_points)
+        x_center, y_center = FeatureMatcher._getCornersCenter(corners, h, w)
+        x_min, x_max = x_center - area_diameter, x_center + area_diameter
+        y_min, y_max = y_center - area_diameter, y_center + area_diameter
 
-        top_left = (100, 100)
-        top_right = (570, 100)
-        bottom_left = (100, 570)
-        bottom_right = (570, 570)
+        if x_min < 0:
+            x_min = 1
+        if x_max > w:
+            x_max = w - 1
+        if y_min < 0:
+            y_min = 1
+        if y_max > h:
+            y_max = h - 1
 
-        # Draw a rectangle
-        cv2.rectangle(img_rectangle, top_left, bottom_right, (255, 255, 255), 2)
+        roi_img = static_img[y_min:y_max, x_min:x_max]
+        for i, col in enumerate(['b', 'g', 'r']):
+            hist = cv2.calcHist([roi_img], [i], None, [256], [0, 256])
+            plt.plot(hist, color=col)
+            plt.xlim([0, 256])
+        plt.show()
 
-        cv2.circle(img_rectangle, bottom_left, 1, cst.COLOR_BLUE, 10)
-        cv2.circle(img_rectangle, top_left, 1, cst.COLOR_GREEN, 10)
-        if show:
-            cv2.imshow('Shape', cv2.resize(img_rectangle, None, fx=0.6, fy=0.6))
-        return img_rectangle
+        return roi_img
