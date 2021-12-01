@@ -122,7 +122,8 @@ class FeatureMatcher:
                 x, y = corner
                 # cv2.putText(img, "{}  {}".format(x, y), (x - 100, y - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 3, cv2.LINE_AA)
                 # calculate for each corner the distance between default corner
-                distance = ut.euclidean_distance(x, y, self._previous_default_corner[0],
+                distance = ut.euclidean_distance(x, y,
+                                                 self._previous_default_corner[0],
                                                  self._previous_default_corner[1])
                 if distance < min_distance:
                     default_corner = (x, y)
@@ -154,7 +155,7 @@ class FeatureMatcher:
         moving_shape_points = (default_corner, second_corner, third_corner, fourth_corner)
         homography_moving_world, _ = ut.find_homography(moving_shape_points, world_shape_points)
         if homography_moving_world is not None:
-            # self._getStaticPixelsIntensity(static_img, static_shape_points)
+            intensities = self._getROIPixelsIntensity(static_img, static_shape_points, roi_diameter=250)
 
             if self._show_homography:
                 img_homography = cv2.warpPerspective(moving_img, homography_moving_world,
@@ -508,13 +509,20 @@ class FeatureMatcher:
         return np.array(cnts_approx)
 
     @staticmethod
-    def _getStaticPixelsIntensity(static_img, static_shape_points, area_diameter=300):
+    def _getROIPixelsIntensity(static_img, static_shape_points, roi_diameter=300):
+        """
+        Extract pixels GRAY channel intensity for a Region Of Interest of the image
+        :param static_img: OpenCv image
+        :param static_shape_points: points of the image
+        :param roi_diameter: diameter of the Region Of Interest
+        :return:
+        """
         from matplotlib import pyplot as plt
         h, w, _ = static_img.shape
         corners = np.array(static_shape_points)
         x_center, y_center = FeatureMatcher._getCornersCenter(corners, h, w)
-        x_min, x_max = x_center - area_diameter, x_center + area_diameter
-        y_min, y_max = y_center - area_diameter, y_center + area_diameter
+        x_min, x_max = x_center - roi_diameter, x_center + roi_diameter
+        y_min, y_max = y_center - roi_diameter, y_center + roi_diameter
 
         if x_min < 0:
             x_min = 1
@@ -525,11 +533,27 @@ class FeatureMatcher:
         if y_max > h:
             y_max = h - 1
 
-        roi_img = static_img[y_min:y_max, x_min:x_max]
+        roi_img = static_img[y_min:y_max, x_min:x_max].copy()
+        roi_img_gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+        h, w = roi_img_gray.shape
+        intensities = [[0 for x in range(w)] for y in range(h)]
+        for y in range(h):
+            for x in range(w):
+                intensity = roi_img_gray[y][x]
+                intensities[x][y] = intensity
+                #print("x: ", x, "y: ", y)
+                #print("intensity: ", intensity)
+
+        cv2.imshow("roi_img", roi_img)
+
+        '''
         for i, col in enumerate(['b', 'g', 'r']):
             hist = cv2.calcHist([roi_img], [i], None, [256], [0, 256])
+            print(hist.shape)
+            print(hist)
             plt.plot(hist, color=col)
             plt.xlim([0, 256])
         plt.show()
+        '''
 
-        return roi_img
+        return np.array(intensities)

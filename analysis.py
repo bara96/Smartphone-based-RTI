@@ -165,7 +165,7 @@ def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_f
         if static_shape_points is not None:
             result = fm.extractFeatures(moving_img=frame_moving, static_img=static_shape,
                                         static_shape_points=static_shape_points,
-                                        wait_key=False)
+                                        wait_key=True)
             if result is not False:
                 dataset.append(result)
 
