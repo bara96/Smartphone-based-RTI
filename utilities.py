@@ -316,38 +316,33 @@ def find_homography(src_pts, dst_pts):
     return matrix, mask
 
 
-def find_pose_from_homography(H, calibration_file_path):
+def find_camera_pose(src_shape_points, dst_shape_points, imageSize):
     """
-    Find R and T from homography
-    :param H: is the homography matrix
-    :param calibration_file_path: camera intrinsics path
+    Find R and T from calibration
+    :param src_shape_points: points from the world reference shape
+    :param dst_shape_points: points from the secondary shape
+    :param imageSize: size of te image
     :return:
-    T is translation
+    :return:
     R is rotation
+    T is translation
     """
-    K, d = get_camera_intrinsics(calibration_file_path)
 
-    H = H.T
-    h1 = H[0]
-    h2 = H[1]
-    h3 = H[2]
-    K_inv = np.linalg.inv(K)
-    L = 1 / np.linalg.norm(np.dot(K_inv, h1))
-    r1 = L * np.dot(K_inv, h1)
-    r2 = L * np.dot(K_inv, h2)
-    r3 = np.cross(r1, r2)
-    T = L * (K_inv @ h3.reshape(3, 1))
-    R = np.array([[r1], [r2], [r3]])
-    R = np.reshape(R, (3, 3))
+    points_3d = np.float32(
+        [(src_shape_points[point][0], src_shape_points[point][1], 0) for point in
+         range(0, len(src_shape_points))])
+    points_2d = np.float32(
+        [(dst_shape_points[point][0], dst_shape_points[point][1]) for point in
+         range(0, len(dst_shape_points))])
 
-    # debug code
-    vector = -(R.transpose() * T)
+    # perform a camera calibration to get R and T
+    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera([points_3d], [points_2d],
+                                                                    imageSize,
+                                                                    None, None)
+    R = cv2.Rodrigues(r_vecs[0])[0]
+    T = t_vecs[0]
 
-    # x, y, z = vector[0][0], vector[0][1], vector[0][2]   # red
-
-    x, y, z = np.dot(-np.transpose(R), T)
-
-    return x, y, z
+    return R, T
 
 
 def find_pose_PNP(src_points, dst_points, calibration_file_path):
@@ -361,7 +356,7 @@ def find_pose_PNP(src_points, dst_points, calibration_file_path):
 
     K, d = get_camera_intrinsics(calibration_file_path)
 
-    src_points = np.float32([(src_points[point][0], src_points[point][1], 0) for point in range(0, len(src_points))])
+    src_points = np.float32([(src_points[point][0], src_points[point][1], 1) for point in range(0, len(src_points))])
     dst_points = np.float32([(dst_points[point][0], src_points[point][1]) for point in range(0, len(dst_points))])
 
     ret, rvecs, tvecs = cv2.solvePnP(src_points, dst_points, K, d)

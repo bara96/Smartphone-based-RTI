@@ -162,8 +162,9 @@ class FeatureMatcher:
                                                      (world_img.shape[1], world_img.shape[0]))
                 cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
 
-            camera_position = ut.find_pose_PNP(static_shape_points, moving_shape_points, cst.INTRINSICS_MOVING_PATH)
+            camera_position = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
             if self._show_light_direction:
+                camera_position = -np.matrix(camera_position[0]).T * np.matrix(camera_position[1])
                 ut.image_draw_circle(static_img, camera_position[0], camera_position[1], cst.COLOR_RED)
 
         if self._show_static_frame:
