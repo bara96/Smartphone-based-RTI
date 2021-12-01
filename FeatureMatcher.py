@@ -50,13 +50,12 @@ class FeatureMatcher:
         self._previous_third_corner = None
         self._previous_second_corner = None
 
-    def extractFeatures(self, moving_img, static_img, static_shape_points, homography_static_world, wait_key=False):
+    def extractFeatures(self, moving_img, static_img, static_shape_points, wait_key=False):
         """
         Feature matching and homography check of given image
         :param moving_img: OpenCv image
         :param static_img: OpenCv image: default rectangle
         :param static_shape_points: points of the default rectangle to use into homography check
-        :param homography_static_world: homography matrix between static frame and world
         :param wait_key: specify if wait to user input or not when showing frames
         :return:
         """
@@ -162,9 +161,10 @@ class FeatureMatcher:
                                                      (world_img.shape[1], world_img.shape[0]))
                 cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
 
-            camera_position = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
+            # find camera pose
+            camera_pose = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
             if self._show_light_direction:
-                camera_position = -np.matrix(camera_position[0]).T * np.matrix(camera_position[1])
+                camera_position = -np.matrix(camera_pose[0]).T * np.matrix(camera_pose[1])
                 ut.image_draw_circle(static_img, camera_position[0], camera_position[1], cst.COLOR_RED)
 
         if self._show_static_frame:

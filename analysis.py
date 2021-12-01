@@ -150,13 +150,6 @@ def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_f
                      show_rectangle_canvas=True, show_corners=True,
                      show_homography=False, show_light_direction=True)
 
-    # compute static shape homography only one time, since is static
-    ret_static, frame_static = video_static.read()
-    frame_static = ut.undistort_image(frame_static, matrix_static, distortion_static)
-    static_shape, static_shape_points = fm.computeStaticShape(frame_static)
-    _, world_shape_points = fm.getWorldRectangleShape(static_shape)
-    homography_static_world, _ = ut.find_homography(static_shape_points, world_shape_points)
-
     dataset = []
     for i in range(start_from_frame, max_frames - 1):
         print("Frame n° ", i)
@@ -172,7 +165,6 @@ def extract_video_frames(static_video_path, moving_video_path, tot_frames, max_f
         if static_shape_points is not None:
             result = fm.extractFeatures(moving_img=frame_moving, static_img=static_shape,
                                         static_shape_points=static_shape_points,
-                                        homography_static_world=homography_static_world,
                                         wait_key=False)
             if result is not False:
                 dataset.append(result)
