@@ -66,15 +66,13 @@ class FeatureMatcher:
         else:
             wait_key = 0
 
-        data = []
-
         height, width, _ = moving_img.shape
 
         ''' Image Enchanting '''
         gray = iut.enchant_brightness_and_contrast(moving_img)
         gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
         gray = 255 - gray
-        gray = iut.image_blur(gray, iterations=5)
+        gray = iut.image_blur(gray, iterations=2)
         # gray = ut.enchant_morphological(gray, [cv2.MORPH_CLOSE], iterations=1)
 
         ''' Image Refinement'''
@@ -102,8 +100,8 @@ class FeatureMatcher:
         corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
                                           maxCorners=4,
                                           qualityLevel=0.1,
-                                          minDistance=30,
-                                          blockSize=20,
+                                          minDistance=50,
+                                          blockSize=30,
                                           useHarrisDetector=False)
 
         if corners is None or len(corners) != 4:
@@ -158,28 +156,29 @@ class FeatureMatcher:
             cv2.circle(static_img, static_shape_points[3], 1, cst.COLOR_ORANGE, 20)
 
         moving_shape_points = (default_corner, second_corner, third_corner, fourth_corner)
-        ''' Homography '''
-        # find homography between moving and static
-        if self._show_homography:
-            homography_moving_world, _ = ut.find_homography(moving_shape_points, static_shape_points)
-            if homography_moving_world is not None:
-                img_homography = cv2.warpPerspective(moving_img, homography_moving_world,
-                                                     (static_img.shape[1], static_img.shape[0]))
-                cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
+
+        ''' Camera Pose'''
+        # find camera pose
+        R, T = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
+        if self._show_light_direction:
+            camera_position = -np.matrix(R).T * np.matrix(T)
+            iut.image_draw_circle(static_img, camera_position[0], camera_position[1], cst.COLOR_RED)
 
         ''' Extract ROI intensities'''
         # get pixels intensity for the selected area
         # intensities is a matrix of pixel[y][x] for gray channel values
         intensities = ut.get_ROI_intensities(static_img, static_shape_points, roi_diameter=250)
 
-        ''' Camera Pose'''
-        # find camera pose
-        camera_pose = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
-        if self._show_light_direction:
-            camera_position = -np.matrix(camera_pose[0]).T * np.matrix(camera_pose[1])
-            iut.image_draw_circle(static_img, camera_position[0], camera_position[1], cst.COLOR_RED)
+        ''' Homography '''
+        if self._show_homography:
+            # find homography between moving and static
+            homography, _ = ut.find_homography(moving_shape_points, static_shape_points)
+            if homography is not None:
+                img_homography = cv2.warpPerspective(moving_img, homography,
+                                                     (static_img.shape[1], static_img.shape[0]))
+                cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
 
-        data.append(dict(intensity=intensities, R=camera_pose[0], T=camera_pose[1]))
+        data = dict(intensity=intensities, R=R, T=T)
 
         if self._show_static_frame:
             cv2.imshow('Static Camera', cv2.resize(static_img, None, fx=0.4, fy=0.4))
@@ -323,6 +322,8 @@ class FeatureMatcher:
 
         # search for third-corner
         third_corner, distances_default = self._trackCorner(distances_third, distances_default)
+        if second_corner[0] == third_corner[0] and second_corner[1] == third_corner[1]:
+            third_corner, distances_default = self._trackCorner([], distances_default)
         self._previous_third_corner = third_corner
 
         fourth_corner = None
@@ -454,26 +455,26 @@ class FeatureMatcher:
         cnts, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
 
-        max_perimeter = 0
+        max_area = 0
         cnt = None
-        perimeters = []
         cnts_approx = []
         i = 0
         if len(cnts) > 0:
             for c in cnts:
                 peri = cv2.arcLength(c, closed=True)
-                if show_contours and peri > 1000:
-                    i += 1
-                    test_img = np.zeros(img.shape, np.uint8)  # create empty image from gray
-                    cv2.drawContours(test_img, [c], -1, (255, 255, 255), 3, cv2.LINE_AA)
-                    cv2.putText(test_img, "perimeter: {}".format(peri), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                                (255, 255, 255), 3, cv2.LINE_AA)
-                    cv2.imshow("test{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
-                if peri > max_perimeter:
-                    max_perimeter = peri
-                    cnt = [c]
+                area = cv2.contourArea(c)
                 cnts_approx.append(c)
-                perimeters.append(peri)
+                if area > 500 and peri > 500:     # discard unclosed contours
+                    if show_contours:
+                        i += 1
+                        test_img = np.zeros(img.shape, np.uint8)  # create empty image from gray
+                        cv2.drawContours(test_img, [c], -1, (255, 255, 255), 3, cv2.LINE_AA)
+                        cv2.putText(test_img, "perimeter: {}  area: {}".format(peri, area), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                    (255, 255, 255), 3, cv2.LINE_AA)
+                        cv2.imshow("test{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
+                    if area > max_area:
+                        max_area = area
+                        cnt = [c]
 
         if max_only:
             if cnt is None:

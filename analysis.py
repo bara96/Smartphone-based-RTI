@@ -6,8 +6,15 @@ from Utils import utilities as ut
 import os
 import cv2
 import math
-from moviepy.editor import VideoFileClip
+import numpy as np
 from FeatureMatcher import FeatureMatcher
+import matplotlib.pyplot as plt
+
+
+def Plot_Data(event, x, y, flags, param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        plt.scatter(x_plot, y_plot)
+        plt.show()
 
 
 def get_audio_offset(video_static, video_moving):
@@ -42,7 +49,7 @@ def get_audio_offset(video_static, video_moving):
     fs2, wave2 = aut.stereo_to_mono_wave(audio2_path)
 
     # calculate and round the shift
-    offset = round(aut.find_audio_correlation(wave2, wave1) / fs1, 0)
+    offset = aut.find_audio_correlation(wave2, wave1) / fs1
 
     print("Current offset: {} \n".format(offset))
 
@@ -97,6 +104,8 @@ def extract_video_frames(static_video_path, moving_video_path,
                          tot_frames, max_frames=0, start_from_frame=0,
                          video_static_offset=0, video_moving_offset=0,
                          default_frame_path="default.png"):
+    global x_plot
+    global y_plot
     """
     Get undistorted frames images from the video_static and extract features
     :param static_video_path: path to the video_static
@@ -117,8 +126,8 @@ def extract_video_frames(static_video_path, moving_video_path,
     video_static = cv2.VideoCapture(static_video_path)
     video_moving = cv2.VideoCapture(moving_video_path)
 
-    video_static_offset *= 30  # 30 fps * offset
-    video_moving_offset *= 30  # 30 fps * offset
+    video_static_offset = round(video_static_offset * 30, 0)  # 30 fps * offset
+    video_moving_offset = round(video_moving_offset * 30, 0)  # 30 fps * offset
 
     # starting from offset (for video_static sync)
     frame_static_fps_count = 0
@@ -139,7 +148,7 @@ def extract_video_frames(static_video_path, moving_video_path,
         max_frames = tot_frames - offset
         frame_skip = 1
 
-    print("Max frames to read:", max_frames, "\n")
+    print("Max frames to read:", max_frames)
 
     if 0 < start_from_frame < tot_frames:
         frame_static_cursor += start_from_frame * frame_skip
@@ -148,6 +157,9 @@ def extract_video_frames(static_video_path, moving_video_path,
         frame_static_cursor += frame_static_fps_count
         video_static.set(cv2.CAP_PROP_POS_FRAMES, frame_static_cursor)
         video_moving.set(cv2.CAP_PROP_POS_FRAMES, frame_moving_cursor)
+
+    print("Static video starting frame:", frame_static_cursor)
+    print("Moving video starting frame:", frame_moving_cursor)
 
     fm = FeatureMatcher()
     # set show parameters for visual debug information
@@ -160,6 +172,8 @@ def extract_video_frames(static_video_path, moving_video_path,
     static_shape_cnts, static_shape_points = fm.computeStaticShape(frame_default)
 
     dataset = []
+    x_plot = []
+    y_plot = []
     for i in range(start_from_frame, max_frames - 1):
         print("Frame n° ", i)
         ret_static, frame_static = video_static.read()
@@ -174,7 +188,13 @@ def extract_video_frames(static_video_path, moving_video_path,
                                     static_shape_points=static_shape_points, static_shape_cnts=static_shape_cnts,
                                     wait_key=False)
         if result is not False:
+            R, T = result.get('R'), result.get('T')
+            camera_position = -np.matrix(R).T * np.matrix(T)
+            camera_position = np.array(camera_position).flatten()
+            x_plot.append(camera_position[0])
+            y_plot.append(camera_position[1])
             dataset.append(result)
+            cv2.setMouseCallback('Static Camera', Plot_Data)
 
         # every 25 frames skip a frame of the static video to keep sync
         '''
@@ -191,6 +211,9 @@ def extract_video_frames(static_video_path, moving_video_path,
         video_static.set(cv2.CAP_PROP_POS_FRAMES, frame_static_cursor)
         video_moving.set(cv2.CAP_PROP_POS_FRAMES, frame_moving_cursor)
 
+    plt.scatter(x_plot, y_plot)
+    plt.show()
+
     video_static.release()
     video_moving.release()
     cv2.destroyAllWindows()
@@ -199,6 +222,7 @@ def extract_video_frames(static_video_path, moving_video_path,
 
 
 def sync_videos(video_static_path, video_moving_path):
+    from moviepy.editor import VideoFileClip
     """
     Synchronize the videos and get the offset and n° of frames
     :param video_static_path: path to the static video
