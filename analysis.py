@@ -165,7 +165,8 @@ def extract_video_frames(static_video_path, moving_video_path,
     # set show parameters for visual debug information
     fm.setShowParams(show_static_frame=True, show_moving_frame=True,
                      show_rectangle_canvas=True, show_corners=True,
-                     show_homography=False, show_light_direction=True)
+                     show_homography=False, show_light_direction=True,
+                     debug=False)
 
     # compute static shape detection only on default frame, since they've all the same homography
     frame_default = cv2.imread(default_frame_path)

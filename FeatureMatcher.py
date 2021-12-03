@@ -24,7 +24,7 @@ class FeatureMatcher:
 
     def setShowParams(self, show_static_frame=True, show_moving_frame=True, show_rectangle_canvas=False,
                       show_corners=False, show_previous_corners=False, show_homography=False,
-                      show_light_direction=False):
+                      show_light_direction=False, debug=False):
         """
         Set show parameters
         :param show_static_frame: show default rectangle shape
@@ -34,6 +34,7 @@ class FeatureMatcher:
         :param show_previous_corners: show previous detected corners
         :param show_homography: show homography between static and moving frames
         :param show_light_direction: show light direction
+        :param debug: show debug info
         """
         self._show_static_frame = show_static_frame
         self._show_moving_frame = show_moving_frame
@@ -42,6 +43,7 @@ class FeatureMatcher:
         self._show_previous_corners = show_previous_corners
         self._show_homography = show_homography
         self._show_light_direction = show_light_direction
+        self._debug = debug
 
     def resetPreviousCorners(self):
         """
@@ -85,7 +87,7 @@ class FeatureMatcher:
 
         # draw only the longest contour (bigger rectangle)
         rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
-        cnts = self._findContours(canny, True, show_contours=False)
+        cnts = self._findContours(canny, True, show_contours=self._debug)
         if cnts is None:
             ut.console_log("Error Moving: No contours detected", 'e')
             return False
@@ -114,7 +116,7 @@ class FeatureMatcher:
         default_corner = None
         if self._previous_default_corner is None:
             # if there isn't a previous point calculate by searching the white circle
-            default_corner = self._findDefaultCorner(moving_img, corners)
+            default_corner = self._findDefaultCorner(moving_img, corners, show_search_lines=self._debug)
         else:
             # if there is a previous point calculate by distance
             min_distance = width
@@ -339,7 +341,7 @@ class FeatureMatcher:
         return second_corner, third_corner, fourth_corner
 
     @staticmethod
-    def _findDefaultCorner(img, corners):
+    def _findDefaultCorner(img, corners, show_search_lines=False):
         """
         Find the default corner of the rectangle
         The default corner is the nearest to the circle into the shape
@@ -350,7 +352,8 @@ class FeatureMatcher:
 
         # search default point
         show_img = None
-        # show_img = img.copy() # debug
+        if show_search_lines:
+            show_img = img.copy()
         default_corner = None
         min_distance = 100
         height, width, _ = img.shape
@@ -364,7 +367,8 @@ class FeatureMatcher:
                                                          y_destination=y_median,
                                                          limit=min_distance,
                                                          show_img=show_img)
-
+            if show_search_lines:
+                cv2.imshow("findDefaultCorner", cv2.resize(show_img, None, fx=0.5, fy=0.5))
             if distance is not False and distance < min_distance:
                 default_corner = (x, y)
                 min_distance = distance
@@ -455,25 +459,26 @@ class FeatureMatcher:
         cnts, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
 
-        max_area = 0
+        max_peri = 0
         cnt = None
         cnts_approx = []
         i = 0
         if len(cnts) > 0:
             for c in cnts:
                 peri = cv2.arcLength(c, closed=True)
-                area = cv2.contourArea(c)
+                approx = cv2.approxPolyDP(c, 0.04 * peri, True)
+                area = cv2.contourArea(approx)
                 cnts_approx.append(c)
-                if area > 500 and peri > 500:     # discard unclosed contours
+                if area > 500 and peri > 500:     # discard outliers contours
                     if show_contours:
                         i += 1
                         test_img = np.zeros(img.shape, np.uint8)  # create empty image from gray
-                        cv2.drawContours(test_img, [c], -1, (255, 255, 255), 3, cv2.LINE_AA)
+                        cv2.drawContours(test_img, [approx], -1, (255, 255, 255), 3, cv2.LINE_AA)
                         cv2.putText(test_img, "perimeter: {}  area: {}".format(peri, area), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
                                     (255, 255, 255), 3, cv2.LINE_AA)
-                        cv2.imshow("test{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
-                    if area > max_area:
-                        max_area = area
+                        cv2.imshow("findContours_{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
+                    if peri > max_peri:
+                        max_peri = peri
                         cnt = [c]
 
         if max_only:
