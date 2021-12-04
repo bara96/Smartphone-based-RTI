@@ -192,20 +192,31 @@ def extract_video_frames(static_video_path, moving_video_path,
     video_static.release()
     video_moving.release()
     cv2.destroyAllWindows()
+    print("\n")
 
     return dataset
 
 
-def compute_intensities(results):
+def compute_intensities(results, show_pixel=False):
+    """
+    Compute light vectors intensities foreach pixel and frame
+    :type results: object
+    :param show_pixel: show first pixel light vectors values
+    :rtype: object
+    """
     import matplotlib.pyplot as plt
-    if len(results) <= 0:
+    if results is None or len(results) <= 0:
         ut.console_log("Error: results are empty")
 
     plot_x = []
     plot_y = []
     plot_z = []
     pixels_data = [[None for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
+    i = 0
+    print("Computing intensities values")
     for result in results:
+        print("Frame n° ", i)
+        i += 1
         intensities = result[0]
         camera_position = result[1]
         for y in range(cst.ROI_DIAMETER):
@@ -215,16 +226,20 @@ def compute_intensities(results):
                 pixels_data[y][x] = dict(light_vector=l, intensity=intensities[y, x])
 
         # extract first pixel values for plot
-        pixel = pixels_data[0][0]
-        plot_x.append(pixel.get('light_vector')[0])
-        plot_y.append(pixel.get('light_vector')[1])
-        plot_z.append(pixel.get('intensity'))
+        if show_pixel:
+            pixel = pixels_data[0][0]
+            print(pixel)
+            plot_x.append(pixel.get('light_vector')[0])
+            plot_y.append(pixel.get('light_vector')[1])
+            plot_z.append(pixel.get('intensity'))
 
-    plt.scatter(plot_x, plot_y, c=plot_z)
-    plt.show()
+    if show_pixel:
+        plt.scatter(plot_x, plot_y, c=plot_z)
+        plt.show()
+    return pixels_data
 
 
-def compute(video_name='coin1', from_storage=True):
+def compute(video_name='coin1', from_storage=False):
     """
     Main function
     :param video_name: name of the video to take
@@ -233,9 +248,10 @@ def compute(video_name='coin1', from_storage=True):
     results_file_path = "assets/results_{}.pickle".format(video_name)
 
     if from_storage:
-        print("Reading values from storage")
+        ut.console_log("Reading values from storage", 's')
         results = ut.read_from_file(results_file_path)
     else:
+        ut.console_log("Generating frames values", 's')
         video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(video_name)
         video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(video_name)
 
@@ -266,4 +282,4 @@ def compute(video_name='coin1', from_storage=True):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    compute(video_name='coin1', from_storage=False)
+    compute(video_name='coin1', from_storage=True)

@@ -12,6 +12,9 @@ def console_log(message, status='e'):
         print("\033[91m{}\033[0m".format(message))
     elif status == 'w':
         print("\033[93m{}\033[0m".format(message))
+    elif status == 's':
+        print("\033[92m{}\033[0m".format(message))
+
 
 
 def get_camera_intrinsics(calibration_file_path):
