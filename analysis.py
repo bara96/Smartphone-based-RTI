@@ -6,58 +6,7 @@ from Utils import utilities as ut
 import os
 import cv2
 import math
-import numpy as np
 from FeatureMatcher import FeatureMatcher
-import matplotlib.pyplot as plt
-
-
-def Plot_Data(event, x, y, flags, param):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        plt.scatter(x_plot, y_plot)
-        plt.show()
-
-
-def get_audio_offset(video_static, video_moving):
-    """
-    Return video static offset, video moving offset
-    :param video_static: first VideoFileClip
-    :param video_moving: second VideoFileClip
-    :return:
-    """
-    video1 = video_static
-    swapped = False
-    video2 = video_moving
-
-    # swap the videos if the second one is greater
-    if video1.duration > video2.duration:
-        swapped = True
-        video = video1
-        video1 = video2
-        video2 = video
-
-    # extract audio from videos
-    audio1 = video1.audio
-    audio1_path = os.path.splitext(video1.filename)[0] + ".wav"
-    audio1.write_audiofile(audio1_path)
-
-    audio2 = video2.audio
-    audio2_path = os.path.splitext(video2.filename)[0] + ".wav"
-    audio2.write_audiofile(audio2_path)
-
-    # get the video shift
-    fs1, wave1 = aut.stereo_to_mono_wave(audio1_path)
-    fs2, wave2 = aut.stereo_to_mono_wave(audio2_path)
-
-    # calculate and round the shift
-    offset = aut.find_audio_correlation(wave2, wave1) / fs1
-
-    print("Current offset: {} \n".format(offset))
-
-    # return the offset
-    if swapped:
-        return offset, 0  # offset is on static video
-    else:
-        return 0, offset  # offset is on moving video
 
 
 def generate_video_default_frame(video_path, calibration_file_path, file_name='default'):
@@ -98,6 +47,30 @@ def generate_video_default_frame(video_path, calibration_file_path, file_name='d
     cv2.destroyAllWindows()
     print("Default frame generated \n")
     return SAVE_PATH
+
+
+def sync_videos(video_static_path, video_moving_path):
+    from moviepy.editor import VideoFileClip
+    """
+    Synchronize the videos and get the offset and n° of frames
+    :param video_static_path: path to the static video
+    :param video_moving_path: path to the moving video
+    """
+    if not os.path.isfile(video_static_path):
+        raise Exception('Video static not found!')
+    if not os.path.isfile(video_moving_path):
+        raise Exception('Video dynamic not found!')
+
+    video_static = VideoFileClip(video_static_path)
+    video_moving = VideoFileClip(video_moving_path)
+
+    # get offset of the two video
+    video_static_offset, video_moving_offset = aut.get_audio_offset(video_static, video_moving)
+
+    # total number of frames of shortest video
+    tot_frames = min(iut.get_video_total_frames(video_static_path), iut.get_video_total_frames(video_moving_path))
+
+    return video_static_offset, video_moving_offset, tot_frames
 
 
 def extract_video_frames(static_video_path, moving_video_path,
@@ -142,9 +115,9 @@ def extract_video_frames(static_video_path, moving_video_path,
     # skip threshold between frames to read a maximum of max_frames
     if max_frames is not 0:
         offset = max(video_static_offset, video_moving_offset)
-        if max_frames < int(tot_frames/8):
+        if max_frames < int(tot_frames / 8):
             # keep at least 1/8 of the frames for a good precision
-            max_frames = int(tot_frames/8)
+            max_frames = int(tot_frames / 8)
         if max_frames > tot_frames:
             max_frames = tot_frames - offset
         frame_skip = math.trunc((tot_frames - offset) / max_frames)
@@ -178,8 +151,6 @@ def extract_video_frames(static_video_path, moving_video_path,
     static_shape_cnts, static_shape_points = fm.computeStaticShape(frame_default)
 
     dataset = []
-    x_plot = []
-    y_plot = []
     failures_consecutive_count = 0
     for i in range(start_from_frame, max_frames - 1):
         print("Frame n° ", i)
@@ -195,13 +166,7 @@ def extract_video_frames(static_video_path, moving_video_path,
                                     static_shape_points=static_shape_points, static_shape_cnts=static_shape_cnts,
                                     wait_key=False)
         if result is not False:
-            R, T = result.get('R'), result.get('T')
-            camera_position = -np.matrix(R).T * np.matrix(T)
-            camera_position = np.array(camera_position).flatten()
-            x_plot.append(camera_position[0])
-            y_plot.append(camera_position[1])
             dataset.append(result)
-            cv2.setMouseCallback('Static Camera', Plot_Data)
             failures_consecutive_count = 0
         else:
             failures_consecutive_count += 1
@@ -224,9 +189,6 @@ def extract_video_frames(static_video_path, moving_video_path,
         video_static.set(cv2.CAP_PROP_POS_FRAMES, frame_static_cursor)
         video_moving.set(cv2.CAP_PROP_POS_FRAMES, frame_moving_cursor)
 
-    plt.scatter(x_plot, y_plot)
-    plt.show()
-
     video_static.release()
     video_moving.release()
     cv2.destroyAllWindows()
@@ -234,64 +196,74 @@ def extract_video_frames(static_video_path, moving_video_path,
     return dataset
 
 
-def sync_videos(video_static_path, video_moving_path):
-    from moviepy.editor import VideoFileClip
-    """
-    Synchronize the videos and get the offset and n° of frames
-    :param video_static_path: path to the static video
-    :param video_moving_path: path to the moving video
-    """
-    if not os.path.isfile(video_static_path):
-        raise Exception('Video static not found!')
-    if not os.path.isfile(video_moving_path):
-        raise Exception('Video dynamic not found!')
+def compute_intensities(results):
+    import matplotlib.pyplot as plt
+    if len(results) <= 0:
+        ut.console_log("Error: results are empty")
 
-    video_static = VideoFileClip(video_static_path)
-    video_moving = VideoFileClip(video_moving_path)
+    plot_x = []
+    plot_y = []
+    plot_z = []
+    pixels_data = [[None for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
+    for result in results:
+        intensities = result[0]
+        camera_position = result[1]
+        for y in range(cst.ROI_DIAMETER):
+            for x in range(cst.ROI_DIAMETER):
+                p = (x, y, 0)
+                l = (camera_position - p) / ut.euclidean_distance(camera_position[0], camera_position[1], p[0], p[1])
+                pixels_data[y][x] = dict(light_vector=l, intensity=intensities[y, x])
 
-    # get offset of the two video
-    video_static_offset, video_moving_offset = get_audio_offset(video_static, video_moving)
+        # extract first pixel values for plot
+        pixel = pixels_data[0][0]
+        plot_x.append(pixel.get('light_vector')[0])
+        plot_y.append(pixel.get('light_vector')[1])
+        plot_z.append(pixel.get('intensity'))
 
-    # total number of frames of shortest video
-    tot_frames = min(iut.get_video_total_frames(video_static_path), iut.get_video_total_frames(video_moving_path))
-
-    return video_static_offset, video_moving_offset, tot_frames
+    plt.scatter(plot_x, plot_y, c=plot_z)
+    plt.show()
 
 
-def compute(video_name='coin1'):
+def compute(video_name='coin1', from_storage=True):
     """
     Main function
     :param video_name: name of the video to take
+    :param from_storage: if True, read data from storage
     """
-    video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(video_name)
-    video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(video_name)
+    results_file_path = "assets/results_{}.pickle".format(video_name)
 
-    # extract features directly from video, without saving frame images
-    video_static_offset, video_moving_offset, tot_frames = sync_videos(video_static_path, video_moving_path)
+    if from_storage:
+        print("Reading values from storage")
+        results = ut.read_from_file(results_file_path)
+    else:
+        video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(video_name)
+        video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(video_name)
 
-    # extract filename from video path in order to create a directory for video frames
-    default_frame_name = 'default_' + os.path.splitext(os.path.basename(video_static_path))[0]
-    # generate default frame from static video
-    default_frame_path = generate_video_default_frame(video_path=video_static_path,
-                                 calibration_file_path=cst.INTRINSICS_STATIC_PATH,
-                                 file_name=default_frame_name)
+        # extract features directly from video, without saving frame images
+        video_static_offset, video_moving_offset, tot_frames = sync_videos(video_static_path, video_moving_path)
 
-    results = extract_video_frames(static_video_path=video_static_path,
-                                   moving_video_path=video_moving_path,
-                                   tot_frames=tot_frames,
-                                   max_frames=300,
-                                   video_moving_offset=video_moving_offset,
-                                   video_static_offset=video_static_offset,
-                                   start_from_frame=0,
-                                   default_frame_path=default_frame_path)
+        # extract filename from video path in order to create a directory for video frames
+        default_frame_name = 'default_' + os.path.splitext(os.path.basename(video_static_path))[0]
+        # generate default frame from static video
+        default_frame_path = generate_video_default_frame(video_path=video_static_path,
+                                                          calibration_file_path=cst.INTRINSICS_STATIC_PATH,
+                                                          file_name=default_frame_name)
 
-    # write results on file
-    file_path = "assets/results_{}.pickle".format(video_name)
-    ut.write_on_file(results, file_path)
+        results = extract_video_frames(static_video_path=video_static_path,
+                                       moving_video_path=video_moving_path,
+                                       tot_frames=tot_frames,
+                                       max_frames=300,
+                                       video_moving_offset=video_moving_offset,
+                                       video_static_offset=video_static_offset,
+                                       start_from_frame=0,
+                                       default_frame_path=default_frame_path)
 
-    return results
+        # write results on file
+        ut.write_on_file(results, results_file_path)
+
+    compute_intensities(results)
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    compute(video_name='coin1')
+    compute(video_name='coin1', from_storage=False)

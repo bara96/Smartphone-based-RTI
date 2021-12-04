@@ -60,6 +60,7 @@ class FeatureMatcher:
         :param static_img: OpenCv image: default rectangle
         :param static_shape_points: points of the static shape
         :param static_shape_cnts: contours of the static shape
+        :param roi_diameter: define the diameter of the Region of Interest to extract
         :param wait_key: specify if wait to user input or not when showing frames
         :return:
         """
@@ -179,14 +180,15 @@ class FeatureMatcher:
         ''' Camera Pose'''
         # find camera pose
         R, T = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
+        camera_position = -np.matrix(R).T * np.matrix(T)
+        camera_position = np.array(camera_position).flatten()
         if self._show_light_direction:
-            camera_position = -np.matrix(R).T * np.matrix(T)
             iut.image_draw_circle(static_img, camera_position[0], camera_position[1], cst.COLOR_RED)
 
         ''' Extract ROI intensities'''
         # get pixels intensity for the selected area
         # intensities is a matrix of pixel[y][x] for gray channel values
-        intensities = ut.get_ROI_intensities(static_img, static_shape_points, roi_diameter=250)
+        intensities = ut.get_ROI_intensities(static_img, static_shape_points, roi_diameter=cst.ROI_DIAMETER)
 
         ''' Homography '''
         if self._show_homography:
@@ -197,7 +199,7 @@ class FeatureMatcher:
                                                      (static_img.shape[1], static_img.shape[0]))
                 cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
 
-        data = dict(intensity=intensities, R=R, T=T)
+        data = (intensities, camera_position)
 
         if self._show_static_frame:
             cv2.imshow('Static Camera', cv2.resize(static_img, None, fx=0.4, fy=0.4))
