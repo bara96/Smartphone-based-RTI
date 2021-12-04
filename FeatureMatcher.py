@@ -60,7 +60,6 @@ class FeatureMatcher:
         :param static_img: OpenCv image: default rectangle
         :param static_shape_points: points of the static shape
         :param static_shape_cnts: contours of the static shape
-        :param roi_diameter: define the diameter of the Region of Interest to extract
         :param wait_key: specify if wait to user input or not when showing frames
         :return:
         """
