@@ -49,8 +49,9 @@ class FeatureMatcher:
         """
         Reset previous corners points
         """
-        self._previous_third_corner = None
+        self._previous_default_corner = None
         self._previous_second_corner = None
+        self._previous_third_corner = None
 
     def extractFeatures(self, moving_img, static_img, static_shape_points, static_shape_cnts, wait_key=False):
         """
@@ -74,24 +75,40 @@ class FeatureMatcher:
         gray = iut.enchant_brightness_and_contrast(moving_img)
         gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
         gray = 255 - gray
-        gray = iut.image_blur(gray, iterations=2)
-        # gray = ut.enchant_morphological(gray, [cv2.MORPH_CLOSE], iterations=1)
 
-        ''' Image Refinement'''
-        # find image edges
-        canny = self._findEdges(gray)
+        iterations = 2
+        cnts = None
+        while iterations >= 0:
+            gray_blurr = iut.image_blur(gray, iterations=iterations)
+            # gray = ut.enchant_morphological(gray, [cv2.MORPH_CLOSE], iterations=1)
 
-        # refine all contours
-        cnts = self._findContours(canny)
-        cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
+            ''' Image Refinement'''
+            # find image edges
+            canny = self._findEdges(gray_blurr)
 
-        # draw only the longest contour (bigger rectangle)
-        rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
-        cnts = self._findContours(canny, True, show_contours=self._debug)
+            # refine all contours
+            cnts = self._findContours(canny)
+            cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
+
+            if self._debug:
+                cv2.imshow('Canny detection', cv2.resize(canny, None, fx=0.5, fy=0.5))
+
+            cnts = self._findContours(canny, True, show_contours=self._debug)
+
+            # if no contours are found, try again with less blurr
+            if cnts is not None:
+                iterations = -1
+            else:
+                iterations -= 1
+
+        # cv2.imshow('mov', cv2.resize(moving_img, None, fx=0.5, fy=0.5))
+        # cv2.waitKey(0)
         if cnts is None:
             ut.console_log("Error Moving: No contours detected", 'e')
             return False
 
+        # draw only the longest contour (bigger rectangle)
+        rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
         cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
         if self._show_rectangles_canvas:
             cv2.drawContours(static_img, static_shape_cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
@@ -434,7 +451,7 @@ class FeatureMatcher:
         :param img:
         :return:
         """
-        sigma = 0.4
+        sigma = 0.5
         # compute the median of the single channel pixel intensities
         v = np.median(img)
         # apply automatic Canny edge detection using the computed median

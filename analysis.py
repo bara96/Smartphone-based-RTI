@@ -131,8 +131,13 @@ def extract_video_frames(static_video_path, moving_video_path,
 
     # starting from offset (for video_static sync)
     frame_static_fps_count = 0
-    frame_static_cursor = video_static_offset
-    frame_moving_cursor = video_moving_offset
+    frame_static_cursor = video_static_offset  # skip offset
+    frame_moving_cursor = video_moving_offset  # skip offset
+
+    # skip two seconds
+    if video_moving_offset < 1.5 or video_static_offset < 1.5:
+        frame_static_cursor += 60
+        frame_moving_cursor += 60
 
     # skip threshold between frames to read a maximum of max_frames
     if max_frames is not 0:
@@ -175,6 +180,7 @@ def extract_video_frames(static_video_path, moving_video_path,
     dataset = []
     x_plot = []
     y_plot = []
+    failures_consecutive_count = 0
     for i in range(start_from_frame, max_frames - 1):
         print("Frame n° ", i)
         ret_static, frame_static = video_static.read()
@@ -196,6 +202,12 @@ def extract_video_frames(static_video_path, moving_video_path,
             y_plot.append(camera_position[1])
             dataset.append(result)
             cv2.setMouseCallback('Static Camera', Plot_Data)
+            failures_consecutive_count = 0
+        else:
+            failures_consecutive_count += 1
+            if failures_consecutive_count > 5:
+                fm.resetPreviousCorners()
+                failures_consecutive_count = 0
 
         # every 25 frames skip a frame of the static video to keep sync
         '''
