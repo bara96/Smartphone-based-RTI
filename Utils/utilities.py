@@ -16,7 +16,6 @@ def console_log(message, status='e'):
         print("\033[92m{}\033[0m".format(message))
 
 
-
 def get_camera_intrinsics(calibration_file_path):
     import os
     """
@@ -209,16 +208,15 @@ def euclidean_distance(x1, y1, x2, y2):
     return float(dist)
 
 
-def interpolate_RBF(img):
-    from PIL import Image
+def interpolate_RBF(x, y, intensities, light_vectors):
     from scipy.interpolate import Rbf
 
-    img_data = np.asarray(img)
+    rbfi = Rbf(x_coarse.ravel(), y_coarse.ravel(), data_coarse.ravel())
 
-    # img = Rbf(img_data[:, 0], img_data[:, 1], img_data[:, 2])
-    # val_ar = rbfi(img_data[:, 0], img_data[:, 1], img_data[:, 2])
+    interpolated_data = rbfi(x_fine.ravel(), y_fine.ravel()).reshape([x_fine.shape[0],
+                                                                      y_fine.shape[0]])
 
-    img_pil = Image.fromarray(np.uint8(img_data)).convert('RGB')
+    plt.imshow(interpolated_data)
     img_pil.show()
 
 

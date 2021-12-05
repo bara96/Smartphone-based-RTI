@@ -1,12 +1,15 @@
 # Import required modules
+import numpy as np
+
 import constants as cst
 from Utils import audio_utils as aut
 from Utils import image_utils as iut
 from Utils import utilities as ut
+from FeatureMatcher import FeatureMatcher
 import os
 import cv2
 import math
-from FeatureMatcher import FeatureMatcher
+import matplotlib.pyplot as plt
 
 
 def generate_video_default_frame(video_path, calibration_file_path, file_name='default'):
@@ -197,16 +200,17 @@ def extract_video_frames(static_video_path, moving_video_path,
     return dataset
 
 
-def compute_intensities(results, show_pixel=False):
+def compute_intensities(data, show_pixel=False):
     """
-    Compute light vectors intensities foreach pixel and frame
-    :type results: object
-    :param show_pixel: show first pixel light vectors values
+    Compute light vectors intensities foreach frame pixel
+    :param data: array of tuples (intensities, camera_position), for each frame
+    intensities: array of intensities for each pixel of the ROI, for the current frame
+    camera_position: tuple (x, y, z), for the current frame
+    :param show_pixel: if True, show first pixel light vectors values
     :rtype: object
     """
-    import matplotlib.pyplot as plt
-    if results is None or len(results) <= 0:
-        ut.console_log("Error: results are empty")
+    if data is None or len(data) <= 0:
+        ut.console_log("Error computing intensities: results are empty")
 
     plot_x = []
     plot_y = []
@@ -214,29 +218,56 @@ def compute_intensities(results, show_pixel=False):
     pixels_data = [[None for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
     i = 0
     print("Computing intensities values")
-    for result in results:
+    for frame_data in data:
         print("Frame n° ", i)
         i += 1
-        intensities = result[0]
-        camera_position = result[1]
+        intensities = frame_data[0]
+        camera_position = frame_data[1]
         for y in range(cst.ROI_DIAMETER):
             for x in range(cst.ROI_DIAMETER):
                 p = (x, y, 0)
                 l = (camera_position - p) / ut.euclidean_distance(camera_position[0], camera_position[1], p[0], p[1])
-                pixels_data[y][x] = dict(light_vector=l, intensity=intensities[y, x])
+                pixels_data[y][x] = (l, intensities[y, x])
 
         # extract first pixel values for plot
         if show_pixel:
             pixel = pixels_data[0][0]
             print(pixel)
-            plot_x.append(pixel.get('light_vector')[0])
-            plot_y.append(pixel.get('light_vector')[1])
-            plot_z.append(pixel.get('intensity'))
+            plot_x.append(pixel[0][0])  # light_vector
+            plot_y.append(pixel[0][1])  # light_vector
+            plot_z.append(pixel[1])  # intensity
 
     if show_pixel:
         plt.scatter(plot_x, plot_y, c=plot_z)
         plt.show()
-    return pixels_data
+
+    return np.array(pixels_data)
+
+
+def interpolate_intensities(data, show_pixel=False):
+    """
+    Interpolate pixel intensities
+    :param data: array of tuples (light_vector, intensity), for each pixel
+    light_vector: tuple (lx, ly, lz) for the current pixel
+    intensity: intensity of the pixel with the current light vector
+    :param show_pixel: if True, show first pixel interpolation
+    """
+    if data is None or len(data) <= 0:
+        ut.console_log("Error computing interpolation: results are empty")
+
+    interpolated_data = []
+    i = 0
+    print("Computing interpolation values")
+    for pixel_data in data:
+        print("Frame n° ", i)
+        i += 1
+        light_vector = pixel_data[0]
+        intensity = pixel_data[1]
+
+    if show_pixel:
+        plt.show()
+
+    return np.array(interpolated_data)
 
 
 def compute(video_name='coin1', from_storage=False):
@@ -277,7 +308,11 @@ def compute(video_name='coin1', from_storage=False):
         # write results on file
         ut.write_on_file(results, results_file_path)
 
-    compute_intensities(results)
+    # compute light vectors intensities
+    data = compute_intensities(results)
+
+    # interpolate pixel intensities
+    interpolate_intensities(data)
 
 
 # Press the green button in the gutter to run the script.
