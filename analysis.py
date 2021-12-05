@@ -270,18 +270,26 @@ def interpolate_intensities(data, show_pixel=False):
     return np.array(interpolated_data)
 
 
-def compute(video_name='coin1', from_storage=False):
+def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     """
     Main function
     :param video_name: name of the video to take
-    :param from_storage: if True, read data from storage
+    :param from_storage: if True read results from a saved file, otherwise compute results from skratch
+    :param storage_filepath:  if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
     """
+
     results_file_path = "assets/results_{}.pickle".format(video_name)
 
-    if from_storage:
+    if from_storage is True:
+        # read a pre-saved results file
+        if storage_filepath is not None:
+            results_file_path = from_storage
+        if not os.path.isfile(results_file_path):
+            raise Exception('Storage results file not found!')
         ut.console_log("Reading values from storage", 's')
         results = ut.read_from_file(results_file_path)
     else:
+        # compute results from skratch
         ut.console_log("Generating frames values", 's')
         video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(video_name)
         video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(video_name)
@@ -317,4 +325,6 @@ def compute(video_name='coin1', from_storage=False):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    coin = 1
+    storage_results_save = "assets/results_coin{}_save.pickle".format(coin)
     compute(video_name='coin1', from_storage=True)
