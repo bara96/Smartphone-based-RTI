@@ -7,13 +7,15 @@ import cv2
 import numpy as np
 
 
-def console_log(message, status='e'):
-    if status == 'e':
+def console_log(message, color='red'):
+    if color == 'red':
         print("\033[91m{}\033[0m".format(message))
-    elif status == 'w':
-        print("\033[93m{}\033[0m".format(message))
-    elif status == 's':
+    elif color == 'green':
         print("\033[92m{}\033[0m".format(message))
+    elif color == 'yellow':
+        print("\033[93m{}\033[0m".format(message))
+    elif color == 'blue':
+        print("\033[94m{}\033[0m".format(message))
 
 
 def get_camera_intrinsics(calibration_file_path):
@@ -206,18 +208,6 @@ def euclidean_distance(x1, y1, x2, y2):
     # dist = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
     dist = abs(x2 - x1) + abs(y2 - y1)
     return float(dist)
-
-
-def interpolate_RBF(x, y, intensities, light_vectors):
-    from scipy.interpolate import Rbf
-
-    rbfi = Rbf(x_coarse.ravel(), y_coarse.ravel(), data_coarse.ravel())
-
-    interpolated_data = rbfi(x_fine.ravel(), y_fine.ravel()).reshape([x_fine.shape[0],
-                                                                      y_fine.shape[0]])
-
-    plt.imshow(interpolated_data)
-    img_pil.show()
 
 
 def get_corners_center(corners, height, width):

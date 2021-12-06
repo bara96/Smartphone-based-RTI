@@ -104,7 +104,7 @@ class FeatureMatcher:
         # cv2.imshow('mov', cv2.resize(moving_img, None, fx=0.5, fy=0.5))
         # cv2.waitKey(0)
         if cnts is None:
-            ut.console_log("Error Moving: No contours detected", 'e')
+            ut.console_log("Error Moving: No contours detected")
             return False
 
         # draw only the longest contour (bigger rectangle)
@@ -124,7 +124,7 @@ class FeatureMatcher:
                                           useHarrisDetector=False)
 
         if corners is None or len(corners) != 4:
-            ut.console_log("Error Moving: Wrong corners detected", 'e')
+            ut.console_log("Error Moving: Wrong corners detected")
             return False
         corners = np.int0(corners)
         corners = corners.reshape((len(corners), 2))
@@ -148,7 +148,7 @@ class FeatureMatcher:
                     default_corner = (x, y)
                     min_distance = distance
         if default_corner is None:
-            ut.console_log("Error Moving: Default corner not found", 'e')
+            ut.console_log("Error Moving: Default corner not found")
             return False
         self._previous_default_corner = default_corner
 
@@ -231,7 +231,7 @@ class FeatureMatcher:
         rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
         cnts = FeatureMatcher._findContours(canny, True, show_contours=False)
         if cnts is None:
-            ut.console_log("Error Static: No contours detected", 'e')
+            ut.console_log("Error Static: No contours detected")
             return False
 
         cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
@@ -246,7 +246,7 @@ class FeatureMatcher:
                                           useHarrisDetector=False)
 
         if corners is None or len(corners) != 4:
-            ut.console_log("Error Static: Wrong corners detected", 'e')
+            ut.console_log("Error Static: Wrong corners detected")
             return img, None
         corners = np.int0(corners)
         corners = corners.reshape((len(corners), 2))
@@ -276,7 +276,7 @@ class FeatureMatcher:
                 fourth_corner = (x, y)
 
         if second_corner is None or third_corner is None or fourth_corner is None:
-            ut.console_log("Error Static: Wrong corners detected", 'e')
+            ut.console_log("Error Static: Wrong corners detected")
             return img, None
 
         return cnts, (default_corner, second_corner, third_corner, fourth_corner)
