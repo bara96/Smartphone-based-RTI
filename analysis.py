@@ -199,13 +199,13 @@ def extract_video_frames(static_video_path, moving_video_path,
     return dataset
 
 
-def compute_intensities(data, show_pixel=False):
+def compute_intensities(data, show_pixel_values=False):
     """
     Compute light vectors intensities foreach frame pixel
     :param data: array of tuples (intensities, camera_position), for each frame
     intensities: array of intensities for each pixel of the ROI, for the current frame
     camera_position: tuple (x, y, z), for the current frame
-    :param show_pixel: if True, show first pixel light vectors values
+    :param show_pixel_values: if True, show first pixel light vectors values
     :rtype: object
     """
     if data is None or len(data) <= 0:
@@ -223,19 +223,19 @@ def compute_intensities(data, show_pixel=False):
         i += 1
         intensities = frame_data[0]
         camera_position = frame_data[1]
-        for y in range(cst.ROI_DIAMETER):
-            for x in range(cst.ROI_DIAMETER):
+        for y in range(0, cst.ROI_DIAMETER):
+            for x in range(0, cst.ROI_DIAMETER):
                 p = (x, y, 0)
-                l = (camera_position - p) / ut.euclidean_distance(camera_position[0], camera_position[1], p[0], p[1])
+                l = (camera_position - p) / np.linalg.norm(camera_position-p)
                 pixels_lx[y][x].append(l[0])
                 pixels_ly[y][x].append(l[1])
                 pixels_intensity[y][x].append(intensities[y][x])
 
-    pixels_lx = np.around(pixels_lx, decimals=2)
-    pixels_ly = np.around(pixels_ly, decimals=2)
+    pixels_lx = np.around(pixels_lx, decimals=3)
+    pixels_ly = np.around(pixels_ly, decimals=3)
     pixels_intensity = np.array(pixels_intensity)
 
-    if show_pixel:
+    if show_pixel_values:
         # extract first pixel values for plot
         lx = pixels_lx[0][0]
         ly = pixels_ly[0][0]
@@ -249,10 +249,10 @@ def compute_intensities(data, show_pixel=False):
         plt.show()
 
     pixels_data = (pixels_lx, pixels_ly, pixels_intensity)
-    return np.array(pixels_data)
+    return pixels_data
 
 
-def interpolate_intensities(data, show_pixel=False):
+def interpolate_intensities(data, show_pixel_values=False):
     from scipy.interpolate import Rbf
     """
     Interpolate pixel intensities
@@ -260,7 +260,7 @@ def interpolate_intensities(data, show_pixel=False):
     pixels_lx: list of lx coordinates for each value, for the current pixel
     pixels_ly: list of ly coordinates for each value, for the current pixel
     pixels_intensity: list of intensities, for current pixel
-    :param show_pixel: if True, show first pixel interpolation
+    :param show_pixel: if True, show first pixel interpolation values
     """
     if data is None or len(data) <= 0:
         ut.console_log("Error computing interpolation: results are empty")
@@ -284,19 +284,16 @@ def interpolate_intensities(data, show_pixel=False):
             lz = np.ones(len(lx))
             val = pixels_intensity[y][x]
 
-            rbfi = Rbf(lx, ly, lz, val)  # radial basis function interpolator instance
+            rbfi = Rbf(lx, ly, val)  # radial basis function interpolator instance
 
-            xi = yi = zi = np.linspace(-1, 1, 1000)
-            di = rbfi(xi, yi, zi)  # interpolated values
+            xi = yi = zi = np.linspace(-1, 1, 100)
+            di = rbfi(xi, yi)  # interpolated values
 
             interpolated_lx[y][x] = xi
             interpolated_ly[y][x] = yi
             interpolated_intensity[y][x] = di
 
-    interpolated_lx = np.around(interpolated_lx, decimals=2)
-    interpolated_ly = np.around(interpolated_ly, decimals=2)
-
-    if show_pixel:
+    if show_pixel_values:
         # plot only first pixel values
         lx = interpolated_lx[0][0]
         ly = interpolated_ly[0][0]
@@ -361,11 +358,11 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
 
     ut.console_log("Step 2: Computing pixels intensities \n", 'blue')
     # compute light vectors intensities
-    data = compute_intensities(results, show_pixel=True)
+    data = compute_intensities(results, show_pixel_values=False)
 
     ut.console_log("Step 3: Computing interpolation \n", 'blue')
     # interpolate pixel intensities
-    interpolate_intensities(data, show_pixel=True)
+    interpolate_intensities(data, show_pixel_values=True)
 
 
 def test():

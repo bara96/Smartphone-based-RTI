@@ -187,7 +187,7 @@ class FeatureMatcher:
         ''' Extract ROI intensities'''
         # get pixels intensity for the selected area
         # intensities is a matrix of pixel[y][x] for gray channel values
-        intensities = ut.get_ROI_intensities(static_img, static_shape_points, roi_diameter=cst.ROI_DIAMETER)
+        intensities = ut.get_ROI_intensities(static_img, static_shape_points)
 
         ''' Homography '''
         if self._show_homography:

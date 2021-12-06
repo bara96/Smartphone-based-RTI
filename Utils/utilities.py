@@ -240,15 +240,16 @@ def get_corners_center(corners, height, width):
     return x_median, y_median
 
 
-def get_ROI_intensities(static_img, static_shape_points, roi_diameter=300, show_roi=False):
+def get_ROI_intensities(static_img, static_shape_points, show_roi=False):
     """
     Extract Region Of Interest from an image with gray channel
     :param static_img: OpenCv image
     :param static_shape_points: points of the image
-    :param roi_diameter: diameter of the Region Of Interest
     :param show_roi: if True, show the extracted image
     :return:
     """
+    roi_diameter = cst.ROI_DIAMETER
+
     h, w, _ = static_img.shape
     corners = np.array(static_shape_points)
     x_center, y_center = get_corners_center(corners, h, w)
