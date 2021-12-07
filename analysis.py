@@ -223,16 +223,16 @@ def compute_intensities(data, show_pixel_values=False):
         i += 1
         intensities = frame_data[0]
         camera_position = frame_data[1]
-        for y in range(0, cst.ROI_DIAMETER):
-            for x in range(0, cst.ROI_DIAMETER):
+        for y in range(0, 1):
+            for x in range(0, 1):
                 p = (x, y, 0)
-                l = (camera_position - p) / np.linalg.norm(camera_position-p)
+                l = np.around((camera_position - p) / np.linalg.norm(camera_position-p), decimals=3)
                 pixels_lx[y][x].append(l[0])
                 pixels_ly[y][x].append(l[1])
                 pixels_intensity[y][x].append(intensities[y][x])
 
-    pixels_lx = np.around(pixels_lx, decimals=3)
-    pixels_ly = np.around(pixels_ly, decimals=3)
+    # pixels_lx = np.around(pixels_lx, decimals=3)
+    # pixels_ly = np.around(pixels_ly, decimals=3)
     pixels_intensity = np.array(pixels_intensity)
 
     if show_pixel_values:
@@ -274,6 +274,10 @@ def interpolate_intensities(data, show_pixel_values=False):
     pixels_lx = data[0]
     pixels_ly = data[1]
     pixels_intensity = data[2]
+    # compute the normalized area domain
+    area_domain = np.mgrid[-1:1:0.01, -1:1:0.01]
+    xi = area_domain[0].ravel()
+    yi = area_domain[1].ravel()
     i = 0
     for y in range(0, 1):
         for x in range(0, 1):
@@ -281,14 +285,13 @@ def interpolate_intensities(data, show_pixel_values=False):
             i += 1
             lx = pixels_lx[y][x]
             ly = pixels_ly[y][x]
-            lz = np.ones(len(lx))
             val = pixels_intensity[y][x]
 
-            rbfi = Rbf(lx, ly, val)  # radial basis function interpolator instance
+            rbfi = Rbf(lx, ly, val, epsilon=2)  # radial basis function interpolator instance
 
-            xi = yi = zi = np.linspace(-1, 1, 100)
-            di = rbfi(xi, yi)  # interpolated values
-
+            # interpolated values
+            di = rbfi(xi, yi)
+        
             interpolated_lx[y][x] = xi
             interpolated_ly[y][x] = yi
             interpolated_intensity[y][x] = di
@@ -299,9 +302,8 @@ def interpolate_intensities(data, show_pixel_values=False):
         ly = interpolated_ly[0][0]
         val = interpolated_intensity[0][0]
 
-        print("interpolated_lx", lx)
-        print("interpolated_ly", ly)
         print("interpolated_val", val)
+
         plt.scatter(lx, ly, c=val)
         plt.show()
 
@@ -369,14 +371,18 @@ def test():
     from scipy.interpolate import Rbf
 
     x_coarse, y_coarse = np.mgrid[-1:1:0.2, -1:1:0.2]
-    print("x_coarse", x_coarse)
     x_fine, y_fine = np.mgrid[-1:1:0.01, -1:1:0.01]
-    print("x_fine", x_fine)
     data_coarse = np.ones([10, 10])
 
     rbfi = Rbf(x_coarse.ravel(), y_coarse.ravel(), data_coarse.ravel())
+    print("x_coarse", x_coarse.ravel().shape)
+    print("x_fine", x_fine.ravel().shape)
+    print("data_coarse", data_coarse.ravel().shape)
 
-    interpolated_data = rbfi(x_fine.ravel(), y_fine.ravel()).reshape([x_fine.shape[0], y_fine.shape[0]])
+    interpolated_data = rbfi(x_fine.ravel(), y_fine.ravel())
+    print("interpolated_data1", interpolated_data.shape)
+    interpolated_data = interpolated_data.reshape([x_fine.shape[0], y_fine.shape[0]])
+    print("interpolated_data2", interpolated_data.shape)
 
     plt.imshow(interpolated_data)
     plt.waitforbuttonpress()
