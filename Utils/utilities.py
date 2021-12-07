@@ -240,11 +240,12 @@ def get_corners_center(corners, height, width):
     return x_median, y_median
 
 
-def get_ROI_intensities(static_img, static_shape_points, show_roi=False):
+def get_ROI(static_img, static_shape_points, grayscale=False, show_roi=False):
     """
     Extract Region Of Interest from an image with gray channel
     :param static_img: OpenCv image
     :param static_shape_points: points of the image
+    :param grayscale: if True, return a greyscale image
     :param show_roi: if True, show the extracted image
     :return:
     """
@@ -266,9 +267,12 @@ def get_ROI_intensities(static_img, static_shape_points, show_roi=False):
         y_max = h - 1
 
     roi_img = static_img[y_min:y_max, x_min:x_max].copy()
-    roi_img_gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
 
     if show_roi:
         cv2.imshow("roi_img", roi_img)
 
-    return np.array(roi_img_gray)
+    if grayscale is True:
+        roi_img_gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+        return np.array(roi_img_gray)
+
+    return roi_img

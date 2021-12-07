@@ -80,8 +80,6 @@ def extract_video_frames(static_video_path, moving_video_path,
                          tot_frames, max_frames=0, start_from_frame=0,
                          video_static_offset=0, video_moving_offset=0,
                          default_frame_path="default.png"):
-    global x_plot
-    global y_plot
     """
     Get undistorted frames images from the video_static and extract features
     :param static_video_path: path to the video_static
@@ -226,14 +224,14 @@ def compute_intensities(data, show_pixel_values=False):
         for y in range(cst.ROI_DIAMETER):
             for x in range(cst.ROI_DIAMETER):
                 p = (x, y, 0)
-                l = np.around((camera_position - p) / np.linalg.norm(camera_position - p), decimals=3)
+                l = (camera_position - p) / np.linalg.norm(camera_position - p)
                 pixels_lx[y][x].append(l[0])
                 pixels_ly[y][x].append(l[1])
                 pixels_intensity[y][x].append(intensities[y][x])
 
-    pixels_lx = np.around(pixels_lx, decimals=3)
-    pixels_ly = np.around(pixels_ly, decimals=3)
-    pixels_intensity = np.array(pixels_intensity, dtype=object)
+    # pixels_lx = np.around(pixels_lx, decimals=4)
+    # pixels_ly = np.around(pixels_ly, decimals=4)
+    pixels_intensity = np.array(pixels_intensity)
 
     if show_pixel_values:
         # plot only first pixel values
@@ -280,8 +278,8 @@ def interpolate_intensities(data, show_pixel_values=False):
     area_domain = np.linspace(-1.0, 1.0, 100)
     xi, yi = np.meshgrid(area_domain, area_domain)
     for y in range(cst.ROI_DIAMETER):
+        print("Pixels row n° {}/{}".format(y, cst.ROI_DIAMETER))
         for x in range(cst.ROI_DIAMETER):
-            print("Pixel ({},{})".format(x, y))
             lx = pixels_lx[y][x]
             ly = pixels_ly[y][x]
             val = pixels_intensity[y][x]
@@ -341,8 +339,8 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
         # extract features directly from video, without saving frame images
         video_static_offset, video_moving_offset, tot_frames = sync_videos(video_static_path, video_moving_path)
 
-        # extract filename from video path in order to create a directory for video frames
-        default_frame_name = 'default_' + os.path.splitext(os.path.basename(video_static_path))[0]
+        # set default frame filename
+        default_frame_name = 'default_{}'.format(video_name)
         # generate default frame from static video
         default_frame_path = generate_video_default_frame(video_path=video_static_path,
                                                           calibration_file_path=cst.INTRINSICS_STATIC_PATH,
@@ -362,33 +360,14 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
 
     ut.console_log("Step 2: Computing pixels intensities \n", 'blue')
     # compute light vectors intensities
-    data = compute_intensities(results_frames, show_pixel_values=True)
+    data = compute_intensities(results_frames, show_pixel_values=False)
 
     ut.console_log("Step 3: Computing interpolation \n", 'blue')
     # interpolate pixel intensities
-    results_interpolation = interpolate_intensities(data, show_pixel_values=True)
+    results_interpolation = interpolate_intensities(data, show_pixel_values=False)
+
     ut.write_on_file(results_interpolation, results_interpolation_filepath)
-
-
-def test():
-    from scipy.interpolate import Rbf
-
-    x_coarse, y_coarse = np.mgrid[-1:1:0.2, -1:1:0.2]
-    x_fine, y_fine = np.mgrid[-1:1:0.01, -1:1:0.01]
-    data_coarse = np.ones([10, 10])
-
-    rbfi = Rbf(x_coarse.ravel(), y_coarse.ravel(), data_coarse.ravel())
-    print("x_coarse", x_coarse.ravel().shape)
-    print("x_fine", x_fine.ravel().shape)
-    print("data_coarse", data_coarse.ravel().shape)
-
-    interpolated_data = rbfi(x_fine.ravel(), y_fine.ravel())
-    print("interpolated_data1", interpolated_data.shape)
-    interpolated_data = interpolated_data.reshape([x_fine.shape[0], y_fine.shape[0]])
-    print("interpolated_data2", interpolated_data.shape)
-
-    plt.imshow(interpolated_data)
-    plt.waitforbuttonpress()
+    ut.console_log("OK. Interpolation results saved. \n", 'green')
 
 
 # Press the green button in the gutter to run the script.
