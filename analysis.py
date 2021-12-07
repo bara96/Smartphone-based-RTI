@@ -315,7 +315,7 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     Main function
     :param video_name: name of the video to take
     :param from_storage: if True read results from a saved file, otherwise compute results from skratch
-    :param storage_filepath:  if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
+    :param storage_filepath: if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
     """
 
     results_frames_filepath = "assets/frames_results_{}.pickle".format(video_name)

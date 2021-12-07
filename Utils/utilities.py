@@ -249,13 +249,13 @@ def get_ROI(static_img, static_shape_points, grayscale=False, show_roi=False):
     :param show_roi: if True, show the extracted image
     :return:
     """
-    roi_diameter = cst.ROI_DIAMETER
+    roi_radius = round(cst.ROI_DIAMETER / 2)
 
     h, w, _ = static_img.shape
     corners = np.array(static_shape_points)
     x_center, y_center = get_corners_center(corners, h, w)
-    x_min, x_max = x_center - roi_diameter, x_center + roi_diameter
-    y_min, y_max = y_center - roi_diameter, y_center + roi_diameter
+    x_min, x_max = x_center - roi_radius, x_center + roi_radius
+    y_min, y_max = y_center - roi_radius, y_center + roi_radius
 
     if x_min < 0:
         x_min = 1

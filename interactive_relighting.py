@@ -9,28 +9,49 @@ import numpy as np
 
 def Mouse_Event(event, x, y, flags, param):
     global roi_img
-    global results_interpolation
+    global interpolated_lx, interpolated_ly, interpolated_intensity
 
+    img = roi_img.copy()
+    #img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     if event == cv2.EVENT_LBUTTONDOWN:
         print(x, y)
         # apply relighting
         for y in range(cst.ROI_DIAMETER):
             for x in range(cst.ROI_DIAMETER):
-                intensities = results_interpolation[y][x]
+                intensities = interpolated_intensity[y][x]
                 # lx = 0, ly = 0
                 intensity = intensities[0][0]
-                print(intensity)
+                img[y][x] = intensity
+                #img[y][x] = get_pixel_intensity(roi_img[y][x], img_gray[y][x], intensity)
 
-        cv2.imshow('Relighting', roi_img)
+        cv2.imshow('Relighting', img)
 
+
+def get_pixel_intensity(bgr, gray, intensity):
+    B, G, R = bgr
+    if intensity > 0:
+        intensity = 0
+    if intensity > 255:
+        intensity = 255
+
+    diff = abs(gray - intensity)
+    if gray > intensity:
+        return B - diff, G - diff, R - diff
+    else:
+        return B + diff, G + diff, R + diff
 
 def compute(video_name='coin1', storage_filepath=None):
     """
     Main function
     :param video_name: name of the video to take
+    :param storage_filepath: if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
+    :var results_interpolation: tuple (interpolated_lx, interpolated_ly, interpolated_intensity)
+    interpolated_lx: list of lx coordinates foreach pixel interpolated value
+    interpolated_ly: list of ly coordinates foreach pixel intensity
+    interpolated_intensity: list of interpolated value foreach pixel
     """
     global roi_img
-    global results_interpolation
+    global interpolated_lx, interpolated_ly, interpolated_intensity
 
     results_filepath = "assets/interpolation_results_{}.pickle".format(video_name)
 
@@ -41,6 +62,7 @@ def compute(video_name='coin1', storage_filepath=None):
 
     print("Reading interpolation values")
     results_interpolation = ut.read_from_file(results_filepath)
+    interpolated_lx, interpolated_ly, interpolated_intensity = results_interpolation
 
     default_frame_path = "assets/default_" + video_name + ".png"
     if not os.path.isfile(default_frame_path):
@@ -54,11 +76,12 @@ def compute(video_name='coin1', storage_filepath=None):
     fm = FeatureMatcher()
     frame_default = cv2.imread(default_frame_path)
     static_shape_cnts, static_shape_points = fm.computeStaticShape(frame_default)
-    roi_img = ut.get_ROI(frame_default, static_shape_points)
+    roi_img = ut.get_ROI(frame_default, static_shape_points, grayscale=True)
 
     ut.console_log("Relightin On. \n", 'green')
     # Read input image, and create output image
     cv2.imshow('Relighting', roi_img)
+    print(roi_img.shape)
 
     # set Mouse Callback method
     cv2.setMouseCallback('Relighting', Mouse_Event)
