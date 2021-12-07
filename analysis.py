@@ -223,20 +223,20 @@ def compute_intensities(data, show_pixel_values=False):
         i += 1
         intensities = frame_data[0]
         camera_position = frame_data[1]
-        for y in range(0, 1):
-            for x in range(0, 1):
+        for y in range(cst.ROI_DIAMETER):
+            for x in range(cst.ROI_DIAMETER):
                 p = (x, y, 0)
-                l = np.around((camera_position - p) / np.linalg.norm(camera_position-p), decimals=3)
+                l = np.around((camera_position - p) / np.linalg.norm(camera_position - p), decimals=3)
                 pixels_lx[y][x].append(l[0])
                 pixels_ly[y][x].append(l[1])
                 pixels_intensity[y][x].append(intensities[y][x])
 
-    # pixels_lx = np.around(pixels_lx, decimals=3)
-    # pixels_ly = np.around(pixels_ly, decimals=3)
-    pixels_intensity = np.array(pixels_intensity)
+    pixels_lx = np.around(pixels_lx, decimals=3)
+    pixels_ly = np.around(pixels_ly, decimals=3)
+    pixels_intensity = np.array(pixels_intensity, dtype=object)
 
     if show_pixel_values:
-        # extract first pixel values for plot
+        # plot only first pixel values
         lx = pixels_lx[0][0]
         ly = pixels_ly[0][0]
         val = pixels_intensity[0][0]
@@ -246,6 +246,8 @@ def compute_intensities(data, show_pixel_values=False):
         print("val", val)
 
         plt.scatter(lx, ly, c=val)
+        plt.xlabel('lx')
+        plt.ylabel('ly')
         plt.show()
 
     pixels_data = (pixels_lx, pixels_ly, pixels_intensity)
@@ -275,23 +277,20 @@ def interpolate_intensities(data, show_pixel_values=False):
     pixels_ly = data[1]
     pixels_intensity = data[2]
     # compute the normalized area domain
-    area_domain = np.mgrid[-1:1:0.01, -1:1:0.01]
-    xi = area_domain[0].ravel()
-    yi = area_domain[1].ravel()
-    i = 0
-    for y in range(0, 1):
-        for x in range(0, 1):
-            print("Frame n° ", i)
-            i += 1
+    area_domain = np.linspace(-1.0, 1.0, 100)
+    xi, yi = np.meshgrid(area_domain, area_domain)
+    for y in range(cst.ROI_DIAMETER):
+        for x in range(cst.ROI_DIAMETER):
+            print("Pixel ({},{})".format(x, y))
             lx = pixels_lx[y][x]
             ly = pixels_ly[y][x]
             val = pixels_intensity[y][x]
 
-            rbfi = Rbf(lx, ly, val, epsilon=2)  # radial basis function interpolator instance
+            rbfi = Rbf(lx, ly, val, function='linear')  # radial basis function interpolator instance
 
             # interpolated values
             di = rbfi(xi, yi)
-        
+
             interpolated_lx[y][x] = xi
             interpolated_ly[y][x] = yi
             interpolated_intensity[y][x] = di
@@ -305,6 +304,8 @@ def interpolate_intensities(data, show_pixel_values=False):
         print("interpolated_val", val)
 
         plt.scatter(lx, ly, c=val)
+        plt.xlabel('lx')
+        plt.ylabel('ly')
         plt.show()
 
     interpolated_data = (interpolated_lx, interpolated_ly, interpolated_intensity)
@@ -319,17 +320,18 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     :param storage_filepath:  if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
     """
 
-    results_file_path = "assets/results_{}.pickle".format(video_name)
+    results_frames_filepath = "assets/frames_results_{}.pickle".format(video_name)
+    results_interpolation_filepath = "assets/interpolation_results_{}.pickle".format(video_name)
 
     ut.console_log("Step 1: Computing frames values \n", 'blue')
     if from_storage is True:
         # read a pre-saved results file
         if storage_filepath is not None:
-            results_file_path = from_storage
-        if not os.path.isfile(results_file_path):
+            results_frames_filepath = from_storage
+        if not os.path.isfile(results_frames_filepath):
             raise Exception('Storage results file not found!')
         print("Reading values from storage")
-        results = ut.read_from_file(results_file_path)
+        results_frames = ut.read_from_file(results_frames_filepath)
     else:
         # compute results from skratch
         print("Generating frames values")
@@ -346,25 +348,26 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
                                                           calibration_file_path=cst.INTRINSICS_STATIC_PATH,
                                                           file_name=default_frame_name)
 
-        results = extract_video_frames(static_video_path=video_static_path,
-                                       moving_video_path=video_moving_path,
-                                       tot_frames=tot_frames,
-                                       max_frames=300,
-                                       video_moving_offset=video_moving_offset,
-                                       video_static_offset=video_static_offset,
-                                       start_from_frame=0,
-                                       default_frame_path=default_frame_path)
+        results_frames = extract_video_frames(static_video_path=video_static_path,
+                                              moving_video_path=video_moving_path,
+                                              tot_frames=tot_frames,
+                                              max_frames=300,
+                                              video_moving_offset=video_moving_offset,
+                                              video_static_offset=video_static_offset,
+                                              start_from_frame=0,
+                                              default_frame_path=default_frame_path)
 
-        # write results on file
-        ut.write_on_file(results, results_file_path)
+        # write frames results on file
+        ut.write_on_file(results_frames, results_frames_filepath)
 
     ut.console_log("Step 2: Computing pixels intensities \n", 'blue')
     # compute light vectors intensities
-    data = compute_intensities(results, show_pixel_values=False)
+    data = compute_intensities(results_frames, show_pixel_values=True)
 
     ut.console_log("Step 3: Computing interpolation \n", 'blue')
     # interpolate pixel intensities
-    interpolate_intensities(data, show_pixel_values=True)
+    results_interpolation = interpolate_intensities(data, show_pixel_values=True)
+    ut.write_on_file(results_interpolation, results_interpolation_filepath)
 
 
 def test():
@@ -387,8 +390,9 @@ def test():
     plt.imshow(interpolated_data)
     plt.waitforbuttonpress()
 
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     coin = 1
-    storage_results_save = "assets/results_coin{}_save.pickle".format(coin)
+    storage_results_save = "assets/frames_results_coin{}_save.pickle".format(coin)
     compute(video_name='coin1', from_storage=True)
