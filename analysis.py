@@ -366,4 +366,4 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
 if __name__ == '__main__':
     coin = 1
     storage_results_save = "assets/frames_results_coin{}_save.pickle".format(coin)
-    compute(video_name='coin1', from_storage=False)
+    compute(video_name='coin1', from_storage=True)
