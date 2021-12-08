@@ -267,16 +267,14 @@ def interpolate_intensities(data, show_pixel_values=False):
 
     print("Computing interpolation values")
 
-    interpolated_lx = [[[] for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
-    interpolated_ly = [[[] for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
     interpolated_intensity = [[[] for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
 
     pixels_lx = data[0]
     pixels_ly = data[1]
     pixels_intensity = data[2]
     # compute the normalized area domain
-    area_domain = np.linspace(-1.0, 1.0, 100)
-    xi, yi = np.meshgrid(area_domain, area_domain)
+    roi_area_domain = np.linspace(-1.0, 1.0, cst.INTERPOLATION_DIAMETER)
+    xi, yi = np.meshgrid(roi_area_domain, roi_area_domain)
     for y in range(cst.ROI_DIAMETER):
         print("Pixels row n° {}/{}".format(y, cst.ROI_DIAMETER))
         for x in range(cst.ROI_DIAMETER):
@@ -288,26 +286,20 @@ def interpolate_intensities(data, show_pixel_values=False):
 
             # interpolated values
             di = rbfi(xi, yi)
-
-            interpolated_lx[y][x] = xi
-            interpolated_ly[y][x] = yi
             interpolated_intensity[y][x] = di
 
     if show_pixel_values:
         # plot only first pixel values
-        lx = interpolated_lx[0][0]
-        ly = interpolated_ly[0][0]
         val = interpolated_intensity[0][0]
 
-        print("interpolated_val", val)
+        print("interpolated_val", val[0][0])
 
         plt.scatter(lx, ly, c=val)
         plt.xlabel('lx')
         plt.ylabel('ly')
         plt.show()
 
-    interpolated_data = (interpolated_lx, interpolated_ly, interpolated_intensity)
-    return interpolated_data
+    return interpolated_intensity
 
 
 def compute(video_name='coin1', from_storage=False, storage_filepath=None):
@@ -374,4 +366,4 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
 if __name__ == '__main__':
     coin = 1
     storage_results_save = "assets/frames_results_coin{}_save.pickle".format(coin)
-    compute(video_name='coin1', from_storage=True)
+    compute(video_name='coin1', from_storage=False)

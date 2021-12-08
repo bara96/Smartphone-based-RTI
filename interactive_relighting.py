@@ -9,20 +9,23 @@ import numpy as np
 
 def Mouse_Event(event, x, y, flags, param):
     global roi_img
-    global interpolated_lx, interpolated_ly, interpolated_intensity
+    global interpolation_intensities
+
+    ly = 0
+    lx = 0
 
     img = roi_img.copy()
-    #img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     if event == cv2.EVENT_LBUTTONDOWN:
-        print(x, y)
         # apply relighting
         for y in range(cst.ROI_DIAMETER):
             for x in range(cst.ROI_DIAMETER):
-                intensities = interpolated_intensity[y][x]
-                # lx = 0, ly = 0
-                intensity = intensities[0][0]
+                intensities = interpolation_intensities[y][x]
+                # transform lx, ly values to interpolation_intensities coordinates
+                y_int, x_int = (1 - ly) * 100, (1 - lx) * 100
+                intensity = intensities[y_int][x_int]
                 img[y][x] = intensity
-                #img[y][x] = get_pixel_intensity(roi_img[y][x], img_gray[y][x], intensity)
+                # img[y][x] = get_pixel_intensity(roi_img[y][x], img_gray[y][x], intensity)
 
         cv2.imshow('Relighting', img)
 
@@ -40,18 +43,16 @@ def get_pixel_intensity(bgr, gray, intensity):
     else:
         return B + diff, G + diff, R + diff
 
+
 def compute(video_name='coin1', storage_filepath=None):
     """
     Main function
     :param video_name: name of the video to take
     :param storage_filepath: if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
-    :var results_interpolation: tuple (interpolated_lx, interpolated_ly, interpolated_intensity)
-    interpolated_lx: list of lx coordinates foreach pixel interpolated value
-    interpolated_ly: list of ly coordinates foreach pixel intensity
-    interpolated_intensity: list of interpolated value foreach pixel
+    interpolation_intensities: list of interpolated values foreach pixel
     """
     global roi_img
-    global interpolated_lx, interpolated_ly, interpolated_intensity
+    global interpolation_intensities
 
     results_filepath = "assets/interpolation_results_{}.pickle".format(video_name)
 
@@ -61,8 +62,8 @@ def compute(video_name='coin1', storage_filepath=None):
         raise Exception('Storage results file not found!')
 
     print("Reading interpolation values")
-    results_interpolation = ut.read_from_file(results_filepath)
-    interpolated_lx, interpolated_ly, interpolated_intensity = results_interpolation
+    interpolation_intensities = ut.read_from_file(results_filepath)
+    roi_area_domain = np.linspace(-1.0, 1.0, cst.INTERPOLATION_DIAMETER)
 
     default_frame_path = "assets/default_" + video_name + ".png"
     if not os.path.isfile(default_frame_path):
