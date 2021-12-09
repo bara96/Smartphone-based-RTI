@@ -11,7 +11,7 @@ import math
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from timeit import default_timer as timer
-from numba import jit, cuda
+from numba import numba, jit, cuda
 
 
 def generate_video_default_frame(video_path, calibration_file_path, file_name='default'):
