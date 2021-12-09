@@ -63,7 +63,7 @@ def compute(video_name='coin1', storage_filepath=None):
 
     print("Reading interpolation values")
     interpolation_intensities = ut.read_from_file(results_filepath)
-    roi_area_domain = np.linspace(-1.0, 1.0, cst.INTERPOLATION_DIAMETER)
+    # yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
 
     default_frame_path = "assets/default_" + video_name + ".png"
     if not os.path.isfile(default_frame_path):

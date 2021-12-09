@@ -197,13 +197,14 @@ def extract_video_frames(static_video_path, moving_video_path,
     return dataset
 
 
-def compute_intensities(data, show_pixel_values=False):
+def compute_intensities(data, show_pixel_values=False, first_only=False):
     """
     Compute light vectors intensities foreach frame pixel
     :param data: array of tuples (intensities, camera_position), for each frame
     intensities: array of intensities for each pixel of the ROI, for the current frame
     camera_position: tuple (x, y, z), for the current frame
     :param show_pixel_values: if True, show first pixel light vectors values
+    :param first_only: compute only first pixel evaluation
     :rtype: object
     """
     if data is None or len(data) <= 0:
@@ -211,9 +212,14 @@ def compute_intensities(data, show_pixel_values=False):
 
     print("Computing intensities values")
 
-    pixels_lx = [[[] for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
-    pixels_ly = [[[] for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
-    pixels_intensity = [[[] for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
+    range_val = cst.ROI_DIAMETER
+    if first_only:
+        ut.console_log("Intensities of first pixel only", "yellow")
+        range_val = 1
+
+    pixels_lx = [[[] for y in range(range_val)] for x in range(range_val)]
+    pixels_ly = [[[] for y in range(range_val)] for x in range(range_val)]
+    pixels_intensity = [[[] for y in range(range_val)] for x in range(range_val)]
 
     i = 0
     for frame_data in data:
@@ -221,16 +227,16 @@ def compute_intensities(data, show_pixel_values=False):
         i += 1
         intensities = frame_data[0]
         camera_position = frame_data[1]
-        for y in range(cst.ROI_DIAMETER):
-            for x in range(cst.ROI_DIAMETER):
+        for y in range(range_val):
+            for x in range(range_val):
                 p = (x, y, 0)
                 l = (camera_position - p) / np.linalg.norm(camera_position - p)
                 pixels_lx[y][x].append(l[0])
                 pixels_ly[y][x].append(l[1])
                 pixels_intensity[y][x].append(intensities[y][x])
 
-    # pixels_lx = np.around(pixels_lx, decimals=4)
-    # pixels_ly = np.around(pixels_ly, decimals=4)
+    pixels_lx = np.array(pixels_lx)
+    pixels_ly = np.array(pixels_ly)
     pixels_intensity = np.array(pixels_intensity)
 
     if show_pixel_values:
@@ -252,7 +258,7 @@ def compute_intensities(data, show_pixel_values=False):
     return pixels_data
 
 
-def interpolate_intensities(data, show_pixel_values=False):
+def interpolate_intensities(data, show_pixel_values=False, first_only=False):
     from scipy.interpolate import Rbf
     """
     Interpolate pixel intensities
@@ -261,23 +267,30 @@ def interpolate_intensities(data, show_pixel_values=False):
     pixels_ly: list of ly coordinates for each value, for the current pixel
     pixels_intensity: list of intensities, for current pixel
     :param show_pixel: if True, show first pixel interpolation values
+    :param first_only: compute only first pixel evaluation
     """
     if data is None or len(data) <= 0:
         ut.console_log("Error computing interpolation: results are empty")
 
     print("Computing interpolation values")
 
-    interpolated_intensity = [[[] for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
+    range_val = cst.ROI_DIAMETER
+    if first_only:
+        ut.console_log("Interpolation of first pixel only", "yellow")
+        range_val = 1
+
+    interpolated_intensity = [[[] for y in range(range_val)] for x in range(range_val)]
 
     pixels_lx = data[0]
     pixels_ly = data[1]
     pixels_intensity = data[2]
     # compute the normalized area domain
-    roi_area_domain = np.linspace(-1.0, 1.0, cst.INTERPOLATION_DIAMETER)
-    xi, yi = np.meshgrid(roi_area_domain, roi_area_domain)
-    for y in range(cst.ROI_DIAMETER):
+    # roi_area_domain = np.linspace(-1.0, 1.0, 200)
+    # xi, yi = np.meshgrid(roi_area_domain, roi_area_domain)
+    yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
+    for y in range(range_val):
         print("Pixels row n° {}/{}".format(y, cst.ROI_DIAMETER))
-        for x in range(cst.ROI_DIAMETER):
+        for x in range(range_val):
             lx = pixels_lx[y][x]
             ly = pixels_ly[y][x]
             val = pixels_intensity[y][x]
@@ -294,7 +307,7 @@ def interpolate_intensities(data, show_pixel_values=False):
 
         print("interpolated_val", val[0][0])
 
-        plt.scatter(lx, ly, c=val)
+        plt.scatter(xi, yi, c=val)
         plt.xlabel('lx')
         plt.ylabel('ly')
         plt.show()
@@ -350,13 +363,16 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
         # write frames results on file
         ut.write_on_file(results_frames, results_frames_filepath)
 
+    # debug param, set True to test only first pixel interpolation
+    first_only = False
+
     ut.console_log("Step 2: Computing pixels intensities \n", 'blue')
     # compute light vectors intensities
-    data = compute_intensities(results_frames, show_pixel_values=False)
+    data = compute_intensities(results_frames, show_pixel_values=False, first_only=first_only)
 
     ut.console_log("Step 3: Computing interpolation \n", 'blue')
     # interpolate pixel intensities
-    results_interpolation = interpolate_intensities(data, show_pixel_values=False)
+    results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=first_only)
 
     ut.write_on_file(results_interpolation, results_interpolation_filepath)
     ut.console_log("OK. Interpolation results saved. \n", 'green')
@@ -366,4 +382,5 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
 if __name__ == '__main__':
     coin = 1
     storage_results_save = "assets/frames_results_coin{}_save.pickle".format(coin)
+
     compute(video_name='coin1', from_storage=True)
