@@ -10,6 +10,7 @@ import cv2
 import math
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from numba import jit, cuda
 
 
 def generate_video_default_frame(video_path, calibration_file_path, file_name='default'):
@@ -197,6 +198,7 @@ def extract_video_frames(static_video_path, moving_video_path,
     return dataset
 
 
+#@jit(target="cuda")
 def compute_intensities(data, show_pixel_values=False, first_only=False):
     """
     Compute light vectors intensities foreach frame pixel
@@ -255,6 +257,7 @@ def compute_intensities(data, show_pixel_values=False, first_only=False):
     return pixels_data
 
 
+#@jit(target="cuda")
 def interpolate_intensities(data, show_pixel_values=False, first_only=False):
     from scipy.interpolate import Rbf
     """
