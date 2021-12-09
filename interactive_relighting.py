@@ -5,6 +5,7 @@ from FeatureMatcher import FeatureMatcher
 from Utils import utilities as ut
 import os
 import numpy as np
+from timeit import default_timer as timer
 
 
 def Mouse_Event(event, x, y, flags, param):
@@ -93,4 +94,7 @@ def compute(video_name='coin1', storage_filepath=None):
 if __name__ == '__main__':
     coin = 1
     storage_results_save = "assets/frames_results_coin{}_save.pickle".format(coin)
+
+    start = timer()
     compute(video_name='coin1')
+    print("Computation duration: {} s".format(round(timer() - start, 2)))

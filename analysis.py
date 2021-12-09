@@ -10,6 +10,7 @@ import cv2
 import math
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from timeit import default_timer as timer
 from numba import jit, cuda
 
 
@@ -383,4 +384,6 @@ if __name__ == '__main__':
     coin = 1
     storage_results_save = "assets/frames_results_coin{}_save.pickle".format(coin)
 
+    start = timer()
     compute(video_name='coin1', from_storage=True)
+    print("Computation duration: {} s".format(round(timer() - start, 2)))
