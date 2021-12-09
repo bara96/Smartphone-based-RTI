@@ -11,8 +11,8 @@ def Mouse_Event(event, x, y, flags, param):
     global roi_img
     global interpolation_intensities
 
-    ly = 0
-    lx = 0
+    ly = -1
+    lx = -1
 
     img = roi_img.copy()
     # img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -22,8 +22,8 @@ def Mouse_Event(event, x, y, flags, param):
             for x in range(cst.ROI_DIAMETER):
                 intensities = interpolation_intensities[y][x]
                 # transform lx, ly values to interpolation_intensities coordinates
-                y_int, x_int = (1 - ly) * 100, (1 - lx) * 100
-                intensity = intensities[y_int][x_int]
+                int_ly, int_lx = (1 + ly) * 100, (1 + lx) * 100
+                intensity = intensities[int_ly][int_lx]
                 img[y][x] = intensity
                 # img[y][x] = get_pixel_intensity(roi_img[y][x], img_gray[y][x], intensity)
 
@@ -63,7 +63,8 @@ def compute(video_name='coin1', storage_filepath=None):
 
     print("Reading interpolation values")
     interpolation_intensities = ut.read_from_file(results_filepath)
-    # yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
+
+    yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
 
     default_frame_path = "assets/default_" + video_name + ".png"
     if not os.path.isfile(default_frame_path):
@@ -82,7 +83,6 @@ def compute(video_name='coin1', storage_filepath=None):
     ut.console_log("Relightin On. \n", 'green')
     # Read input image, and create output image
     cv2.imshow('Relighting', roi_img)
-    print(roi_img.shape)
 
     # set Mouse Callback method
     cv2.setMouseCallback('Relighting', Mouse_Event)

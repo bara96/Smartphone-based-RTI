@@ -279,7 +279,7 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
         ut.console_log("Interpolation of first pixel only", "yellow")
         range_val = 1
 
-    interpolated_intensity = [[[] for y in range(range_val)] for x in range(range_val)]
+    interpolated_intensities = [[[] for y in range(range_val)] for x in range(range_val)]
 
     pixels_lx = data[0]
     pixels_ly = data[1]
@@ -299,11 +299,11 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
 
             # interpolated values
             di = rbfi(xi, yi)
-            interpolated_intensity[y][x] = di
+            interpolated_intensities[y][x] = di
 
     if show_pixel_values:
         # plot only first pixel values
-        val = interpolated_intensity[0][0]
+        val = interpolated_intensities[0][0]
 
         print("interpolated_val", val[0][0])
 
@@ -312,7 +312,7 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
         plt.ylabel('ly')
         plt.show()
 
-    return interpolated_intensity
+    return interpolated_intensities
 
 
 def compute(video_name='coin1', from_storage=False, storage_filepath=None):
@@ -374,8 +374,9 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     # interpolate pixel intensities
     results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=first_only)
 
-    ut.write_on_file(results_interpolation, results_interpolation_filepath)
-    ut.console_log("OK. Interpolation results saved. \n", 'green')
+    if first_only is False:
+        ut.write_on_file(results_interpolation, results_interpolation_filepath)
+        ut.console_log("OK. Interpolation results saved. \n", 'green')
 
 
 # Press the green button in the gutter to run the script.
