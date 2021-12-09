@@ -1,6 +1,5 @@
 # Import required modules
 import numpy as np
-
 import constants as cst
 from Utils import audio_utils as aut
 from Utils import image_utils as iut
@@ -10,6 +9,7 @@ import os
 import cv2
 import math
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 
 def generate_video_default_frame(video_path, calibration_file_path, file_name='default'):
@@ -210,7 +210,7 @@ def compute_intensities(data, show_pixel_values=False, first_only=False):
     if data is None or len(data) <= 0:
         ut.console_log("Error computing intensities: results are empty")
 
-    print("Computing intensities values")
+    print("Computing intensities values:")
 
     range_val = cst.ROI_DIAMETER
     if first_only:
@@ -221,10 +221,7 @@ def compute_intensities(data, show_pixel_values=False, first_only=False):
     pixels_ly = [[[] for y in range(range_val)] for x in range(range_val)]
     pixels_intensity = [[[] for y in range(range_val)] for x in range(range_val)]
 
-    i = 0
-    for frame_data in data:
-        print("Frame n° ", i)
-        i += 1
+    for frame_data in tqdm(data):
         intensities = frame_data[0]
         camera_position = frame_data[1]
         for y in range(range_val):
@@ -272,7 +269,7 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
     if data is None or len(data) <= 0:
         ut.console_log("Error computing interpolation: results are empty")
 
-    print("Computing interpolation values")
+    print("Computing interpolation values:")
 
     range_val = cst.ROI_DIAMETER
     if first_only:
@@ -288,8 +285,7 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
     # roi_area_domain = np.linspace(-1.0, 1.0, 200)
     # xi, yi = np.meshgrid(roi_area_domain, roi_area_domain)
     yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
-    for y in range(range_val):
-        print("Pixels row n° {}/{}".format(y, cst.ROI_DIAMETER))
+    for y in tqdm(range(range_val)):
         for x in range(range_val):
             lx = pixels_lx[y][x]
             ly = pixels_ly[y][x]
@@ -326,7 +322,7 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     results_frames_filepath = "assets/frames_results_{}.pickle".format(video_name)
     results_interpolation_filepath = "assets/interpolation_results_{}.pickle".format(video_name)
 
-    ut.console_log("Step 1: Computing frames values \n", 'blue')
+    ut.console_log("Step 1: Computing frames values", 'blue')
     if from_storage is True:
         # read a pre-saved results file
         if storage_filepath is not None:
@@ -366,17 +362,17 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     # debug param, set True to test only first pixel interpolation
     first_only = False
 
-    ut.console_log("Step 2: Computing pixels intensities \n", 'blue')
+    ut.console_log("Step 2: Computing pixels intensities", 'blue')
     # compute light vectors intensities
     data = compute_intensities(results_frames, show_pixel_values=False, first_only=first_only)
 
-    ut.console_log("Step 3: Computing interpolation \n", 'blue')
+    ut.console_log("Step 3: Computing interpolation", 'blue')
     # interpolate pixel intensities
     results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=first_only)
 
     if first_only is False:
         ut.write_on_file(results_interpolation, results_interpolation_filepath)
-        ut.console_log("OK. Interpolation results saved. \n", 'green')
+        ut.console_log("OK. Interpolation results saved.", 'green')
 
 
 # Press the green button in the gutter to run the script.

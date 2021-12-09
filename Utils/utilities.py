@@ -9,13 +9,13 @@ import numpy as np
 
 def console_log(message, color='red'):
     if color == 'red':
-        print("\033[91m{}\033[0m".format(message))
+        print("\n\033[91m{}\033[0m".format(message))
     elif color == 'green':
-        print("\033[92m{}\033[0m".format(message))
+        print("\n\033[92m{}\033[0m".format(message))
     elif color == 'yellow':
-        print("\033[93m{}\033[0m".format(message))
+        print("\n\033[93m{}\033[0m".format(message))
     elif color == 'blue':
-        print("\033[94m{}\033[0m".format(message))
+        print("\n\033[94m{}\033[0m".format(message))
 
 
 def get_camera_intrinsics(calibration_file_path):
