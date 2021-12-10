@@ -156,8 +156,7 @@ def extract_video_frames(static_video_path, moving_video_path,
 
     dataset = []
     failures_consecutive_count = 0
-    for i in range(start_from_frame, max_frames - 1):
-        print("Frame n° ", i)
+    for i in tqdm(range(start_from_frame, max_frames - 1)):
         ret_static, frame_static = video_static.read()
         ret_moving, frame_moving = video_moving.read()
         if ret_static is False or ret_moving is False:
@@ -373,7 +372,9 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
 
     if first_only is False:
         ut.write_on_file(results_interpolation, results_interpolation_filepath)
-        ut.console_log("OK. Interpolation results saved.", 'green')
+        print("Interpolation results saved.")
+
+    ut.console_log("OK. Computation completed", 'green')
 
 
 # Press the green button in the gutter to run the script.
