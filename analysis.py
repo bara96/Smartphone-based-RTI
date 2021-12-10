@@ -284,7 +284,7 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
     # xi, yi = np.meshgrid(roi_area_domain, roi_area_domain)
     yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
 
-    interpolated_intensities = np.empty((range_val, range_val, len(yi), len(xi)), dtype=np.float32)
+    interpolated_intensities = [[[] for y in range(range_val)] for x in range(range_val)]
     for y in tqdm(range(range_val)):
         for x in range(range_val):
             lx = pixels_lx[y][x]
