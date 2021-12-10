@@ -5,6 +5,7 @@ from Utils import audio_utils as aut
 from Utils import image_utils as iut
 from Utils import utilities as ut
 from FeatureMatcher import FeatureMatcher
+from scipy.interpolate import Rbf
 import os
 import cv2
 import math
@@ -199,7 +200,7 @@ def extract_video_frames(static_video_path, moving_video_path,
     return dataset
 
 
-#@jit(target="cuda")
+# @jit(forceobj=True)
 def compute_intensities(data, show_pixel_values=False, first_only=False):
     """
     Compute light vectors intensities foreach frame pixel
@@ -211,7 +212,7 @@ def compute_intensities(data, show_pixel_values=False, first_only=False):
     :rtype: object
     """
     if data is None or len(data) <= 0:
-        ut.console_log("Error computing intensities: results are empty")
+        raise Exception("Error computing intensities: results are empty")
 
     print("Computing intensities values:")
 
@@ -220,24 +221,21 @@ def compute_intensities(data, show_pixel_values=False, first_only=False):
         ut.console_log("Intensities of first pixel only", "yellow")
         range_val = 1
 
-    pixels_lx = [[[] for y in range(range_val)] for x in range(range_val)]
-    pixels_ly = [[[] for y in range(range_val)] for x in range(range_val)]
-    pixels_intensity = [[[] for y in range(range_val)] for x in range(range_val)]
+    pixels_lx = np.empty((range_val, range_val, len(data)), dtype=np.float32)
+    pixels_ly = np.empty((range_val, range_val, len(data)), dtype=np.float32)
+    pixels_intensity = np.empty((range_val, range_val, len(data)), dtype=np.int32)
 
-    for frame_data in tqdm(data):
+    for i in tqdm(range(len(data))):
+        frame_data = data[i]
         intensities = frame_data[0]
         camera_position = frame_data[1]
         for y in range(range_val):
             for x in range(range_val):
                 p = (x, y, 0)
                 l = (camera_position - p) / np.linalg.norm(camera_position - p)
-                pixels_lx[y][x].append(l[0])
-                pixels_ly[y][x].append(l[1])
-                pixels_intensity[y][x].append(intensities[y][x])
-
-    pixels_lx = np.array(pixels_lx)
-    pixels_ly = np.array(pixels_ly)
-    pixels_intensity = np.array(pixels_intensity)
+                pixels_lx[y][x][i] = l[0]
+                pixels_ly[y][x][i] = l[1]
+                pixels_intensity[y][x][i] = intensities[y][x]
 
     if show_pixel_values:
         # plot only first pixel values
@@ -258,9 +256,8 @@ def compute_intensities(data, show_pixel_values=False, first_only=False):
     return pixels_data
 
 
-#@jit(target="cuda")
+# @jit(forceobj=True)
 def interpolate_intensities(data, show_pixel_values=False, first_only=False):
-    from scipy.interpolate import Rbf
     """
     Interpolate pixel intensities
     :param data: array of tuples (pixels_lx, pixels_ly, pixels_intensity), for each pixel
@@ -271,7 +268,7 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
     :param first_only: compute only first pixel evaluation
     """
     if data is None or len(data) <= 0:
-        ut.console_log("Error computing interpolation: results are empty")
+        raise Exception("Error computing interpolation: results are empty")
 
     print("Computing interpolation values:")
 
@@ -280,8 +277,6 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
         ut.console_log("Interpolation of first pixel only", "yellow")
         range_val = 1
 
-    interpolated_intensities = [[[] for y in range(range_val)] for x in range(range_val)]
-
     pixels_lx = data[0]
     pixels_ly = data[1]
     pixels_intensity = data[2]
@@ -289,6 +284,8 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
     # roi_area_domain = np.linspace(-1.0, 1.0, 200)
     # xi, yi = np.meshgrid(roi_area_domain, roi_area_domain)
     yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
+
+    interpolated_intensities = np.empty((range_val, range_val, len(yi), len(xi)), dtype=np.float32)
     for y in tqdm(range(range_val)):
         for x in range(range_val):
             lx = pixels_lx[y][x]
@@ -305,7 +302,7 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
         # plot only first pixel values
         val = interpolated_intensities[0][0]
 
-        print("interpolated_val", val[0][0])
+        print("interpolated_val", val)
 
         plt.scatter(xi, yi, c=val)
         plt.xlabel('lx')

@@ -44,4 +44,8 @@ Here the commands to import required libraries with [conda](https://conda.io/)
 <code>conda install -c conda-forge svglib</code>  
 <code>conda install -c anaconda reportlab</code>  
 <code>conda install scikit-image</code>  
-<code>conda install numba & conda install cudatoolkit</code>  <small>Note: this is required to run on GPU
+
+### GPU Libraries
+<small>Note: this is required to run on GPU</small>  
+<code>conda install numba</code>  
+<code>conda install cudatoolkit</code>  
