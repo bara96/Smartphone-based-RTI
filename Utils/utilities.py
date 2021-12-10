@@ -36,33 +36,54 @@ def get_camera_intrinsics(calibration_file_path):
     return matrix, distortion
 
 
-def write_on_file(data, filename):
+def write_on_file(data, filename, compressed=True):
     """
     Write data on pickle file
     :param data: Object to save
     :param filename: filename of the pickle file to save
+    :param compressed: compress file
     """
-    filename = filename + '.npy'
+    import bz2
+    import pickle
+    import _pickle as cPickle
 
-    with open(filename, "wb") as f:
-        np.save(f, data)
+    if compressed:
+        filename = filename + '.pbz2'
+        with bz2.BZ2File(filename, "wb") as f:
+            cPickle.dump(data, f)
+    else:
+        filename = filename + '.pickle'
+        with open(filename, "wb") as f:
+            pickle.dump(data, f)
 
     console_log("Saved file {}".format(filename), 'yellow')
 
 
-def read_from_file(filename):
+def read_from_file(filename, compressed=True):
     """
     Read data from pickle file
     :param filename: filename of the pickle file to read
+    :param compressed: read from compressed file
     :return:
     """
-    filename = filename + '.npy'
+    import bz2
+    import pickle
+    import _pickle as cPickle
+
+    if compressed:
+        filename = filename + '.pbz2'
+    else:
+        filename = filename + '.pickle'
 
     if not os.path.isfile(filename):
         raise Exception('Storage file not found!')
 
-    with open(filename, 'rb') as f:
-        results = np.load(f, allow_pickle=True)
+    if compressed:
+        with bz2.BZ2File(filename, 'rb') as f:
+            results = cPickle.load(f)
+    else:
+        with open(filename, "rb") as f:
+            results = pickle.load(f)
 
     return results
 

@@ -109,8 +109,8 @@ def extract_video_frames(static_video_path, moving_video_path,
     frame_moving_cursor = video_moving_offset  # skip offset
 
     # skip two seconds
-    frame_static_cursor += 60
-    frame_moving_cursor += 60
+    # frame_static_cursor += 60
+    # frame_moving_cursor += 60
 
     start_from_frame = 0    # starting from a given frame
     max_frames_to_read = int(tot_frames / 8)    # set a max n° of frames to read
@@ -146,7 +146,7 @@ def extract_video_frames(static_video_path, moving_video_path,
     for i in tqdm(range(start_from_frame, max_frames_to_read - 1)):
         ret_static, frame_static = video_static.read()
         ret_moving, frame_moving = video_moving.read()
-        if ret_static is False or ret_moving is False or i > 330:
+        if ret_static is False or ret_moving is False:
             ut.console_log('Error: Null frame')
             continue
 
@@ -362,7 +362,7 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    coin = 3
+    coin = 1
     storage_results_save = "assets/frames_results_coin{}".format(coin)
 
     start = timer()
