@@ -121,7 +121,7 @@ class FeatureMatcher:
         corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
                                           maxCorners=4,
                                           qualityLevel=0.1,
-                                          minDistance=50,
+                                          minDistance=200,
                                           blockSize=30,
                                           useHarrisDetector=False)
 

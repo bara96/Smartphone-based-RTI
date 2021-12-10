@@ -5,6 +5,7 @@ Main utilities methods
 import constants as cst
 import cv2
 import numpy as np
+import os
 
 
 def console_log(message, color='red'):
@@ -53,6 +54,10 @@ def read_from_file(filename):
     :return:
     """
     import pickle
+
+    if not os.path.isfile(filename):
+        raise Exception('Pickle file not found!')
+
     with open(filename, 'rb') as f:
         results = pickle.load(f)
     return results

@@ -80,18 +80,15 @@ def sync_videos(video_static_path, video_moving_path):
 
 
 def extract_video_frames(static_video_path, moving_video_path,
-                         tot_frames, max_frames=0, start_from_frame=0,
-                         video_static_offset=0, video_moving_offset=0,
+                         tot_frames, video_static_offset=0, video_moving_offset=0,
                          default_frame_path="default.png"):
     """
     Get undistorted frames images from the video_static and extract features
     :param static_video_path: path to the video_static
     :param moving_video_path: path to the video_moving
     :param tot_frames: total number of frames of the video_static
-    :param max_frames: set a max n° of frames to read
     :param video_static_offset: starting offset for the static video
     :param video_moving_offset: starting offset for the moving video
-    :param start_from_frame: starting a given frame
     :param default_frame_path: name of the default frame file
     :return:
     """
@@ -112,27 +109,17 @@ def extract_video_frames(static_video_path, moving_video_path,
     frame_moving_cursor = video_moving_offset  # skip offset
 
     # skip two seconds
-    if video_moving_offset < 1.5 or video_static_offset < 1.5:
-        frame_static_cursor += 60
-        frame_moving_cursor += 60
+    # frame_static_cursor += 30
+    # frame_moving_cursor += 30
 
-    # skip threshold between frames to read a maximum of max_frames
-    if max_frames is not 0:
-        offset = max(video_static_offset, video_moving_offset)
-        if max_frames < int(tot_frames / 8):
-            # keep at least 1/8 of the frames for a good precision
-            max_frames = int(tot_frames / 8)
-        if max_frames > tot_frames:
-            max_frames = tot_frames - offset
-        frame_skip = math.trunc((tot_frames - offset) / max_frames)
-    else:
-        offset = max(video_static_offset, video_moving_offset)
-        max_frames = tot_frames - offset
-        frame_skip = 1
+    start_from_frame = 0    # starting from a given frame
+    max_frames_to_read = int(tot_frames / 8)    # set a max n° of frames to read
+    offset = max(video_static_offset, video_moving_offset)
+    frame_skip = math.trunc((tot_frames - offset) / max_frames_to_read)
 
-    print("Max frames to read:", max_frames)
+    print("Max frames to read:", max_frames_to_read)
 
-    if 0 < start_from_frame < tot_frames:
+    if 0 < start_from_frame < max_frames_to_read:
         frame_static_cursor += start_from_frame * frame_skip
         frame_moving_cursor += start_from_frame * frame_skip
         frame_static_fps_count = int(frame_moving_cursor / 25)
@@ -156,7 +143,7 @@ def extract_video_frames(static_video_path, moving_video_path,
 
     dataset = []
     failures_consecutive_count = 0
-    for i in tqdm(range(start_from_frame, max_frames - 1)):
+    for i in tqdm(range(start_from_frame, max_frames_to_read - 1)):
         ret_static, frame_static = video_static.read()
         ret_moving, frame_moving = video_moving.read()
         if ret_static is False or ret_moving is False:
@@ -173,7 +160,7 @@ def extract_video_frames(static_video_path, moving_video_path,
             failures_consecutive_count = 0
         else:
             failures_consecutive_count += 1
-            if failures_consecutive_count > 5:
+            if failures_consecutive_count > 4:
                 fm.resetPreviousCorners()
                 failures_consecutive_count = 0
 
@@ -242,9 +229,9 @@ def compute_intensities(data, show_pixel_values=False, first_only=False):
         ly = pixels_ly[0][0]
         val = pixels_intensity[0][0]
 
-        print("lx", lx)
-        print("ly", ly)
-        print("val", val)
+        # print("lx", lx)
+        # print("ly", ly)
+        # print("val", val)
 
         plt.scatter(lx, ly, c=val)
         plt.xlabel('lx')
@@ -263,7 +250,7 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
     pixels_lx: list of lx coordinates for each value, for the current pixel
     pixels_ly: list of ly coordinates for each value, for the current pixel
     pixels_intensity: list of intensities, for current pixel
-    :param show_pixel: if True, show first pixel interpolation values
+    :param show_pixel_values: if True, show first pixel interpolation values
     :param first_only: compute only first pixel evaluation
     """
     if data is None or len(data) <= 0:
@@ -301,7 +288,7 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
         # plot only first pixel values
         val = interpolated_intensities[0][0]
 
-        print("interpolated_val", val)
+        # print("interpolated_val", val)
 
         plt.scatter(xi, yi, c=val)
         plt.xlabel('lx')
@@ -326,9 +313,7 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     if from_storage is True:
         # read a pre-saved results file
         if storage_filepath is not None:
-            results_frames_filepath = from_storage
-        if not os.path.isfile(results_frames_filepath):
-            raise Exception('Storage results file not found!')
+            results_frames_filepath = storage_filepath
         print("Reading values from storage")
         results_frames = ut.read_from_file(results_frames_filepath)
     else:
@@ -350,10 +335,8 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
         results_frames = extract_video_frames(static_video_path=video_static_path,
                                               moving_video_path=video_moving_path,
                                               tot_frames=tot_frames,
-                                              max_frames=300,
                                               video_moving_offset=video_moving_offset,
                                               video_static_offset=video_static_offset,
-                                              start_from_frame=0,
                                               default_frame_path=default_frame_path)
 
         # write frames results on file
@@ -364,11 +347,11 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
 
     ut.console_log("Step 2: Computing pixels intensities", 'blue')
     # compute light vectors intensities
-    data = compute_intensities(results_frames, show_pixel_values=False, first_only=first_only)
+    data = compute_intensities(results_frames, show_pixel_values=True, first_only=first_only)
 
     ut.console_log("Step 3: Computing interpolation", 'blue')
     # interpolate pixel intensities
-    results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=first_only)
+    results_interpolation = interpolate_intensities(data, show_pixel_values=True, first_only=first_only)
 
     if first_only is False:
         ut.write_on_file(results_interpolation, results_interpolation_filepath)
@@ -379,9 +362,9 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    coin = 1
-    storage_results_save = "assets/frames_results_coin{}_save.pickle".format(coin)
+    coin = 2
+    storage_results_save = "assets/frames_results_coin{}.pickle".format(coin)
 
     start = timer()
-    compute(video_name='coin1', from_storage=True)
+    compute(video_name='coin{}'.format(coin), from_storage=False)
     print("Computation duration: {} s".format(round(timer() - start, 2)))
