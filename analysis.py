@@ -1,6 +1,5 @@
 # Import required modules
 import numpy as np
-
 import constants as cst
 from Utils import audio_utils as aut
 from Utils import image_utils as iut
@@ -10,6 +9,9 @@ import os
 import cv2
 import math
 import matplotlib.pyplot as plt
+from tqdm import tqdm
+from timeit import default_timer as timer
+from numba import numba, jit, cuda
 
 
 def generate_video_default_frame(video_path, calibration_file_path, file_name='default'):
@@ -80,8 +82,6 @@ def extract_video_frames(static_video_path, moving_video_path,
                          tot_frames, max_frames=0, start_from_frame=0,
                          video_static_offset=0, video_moving_offset=0,
                          default_frame_path="default.png"):
-    global x_plot
-    global y_plot
     """
     Get undistorted frames images from the video_static and extract features
     :param static_video_path: path to the video_static
@@ -160,7 +160,7 @@ def extract_video_frames(static_video_path, moving_video_path,
         ret_static, frame_static = video_static.read()
         ret_moving, frame_moving = video_moving.read()
         if ret_static is False or ret_moving is False:
-            ut.console_log('Error: Null frame', 'e')
+            ut.console_log('Error: Null frame')
             continue
 
         frame_static = iut.undistort_image(frame_static, matrix_static, distortion_static)
@@ -195,79 +195,124 @@ def extract_video_frames(static_video_path, moving_video_path,
     video_static.release()
     video_moving.release()
     cv2.destroyAllWindows()
-    print("\n")
 
     return dataset
 
 
-def compute_intensities(data, show_pixel=False):
+#@jit(target="cuda")
+def compute_intensities(data, show_pixel_values=False, first_only=False):
     """
     Compute light vectors intensities foreach frame pixel
     :param data: array of tuples (intensities, camera_position), for each frame
     intensities: array of intensities for each pixel of the ROI, for the current frame
     camera_position: tuple (x, y, z), for the current frame
-    :param show_pixel: if True, show first pixel light vectors values
+    :param show_pixel_values: if True, show first pixel light vectors values
+    :param first_only: compute only first pixel evaluation
     :rtype: object
     """
     if data is None or len(data) <= 0:
         ut.console_log("Error computing intensities: results are empty")
 
-    plot_x = []
-    plot_y = []
-    plot_z = []
-    pixels_data = [[None for y in range(cst.ROI_DIAMETER)] for x in range(cst.ROI_DIAMETER)]
-    i = 0
-    print("Computing intensities values")
-    for frame_data in data:
-        print("Frame n° ", i)
-        i += 1
+    print("Computing intensities values:")
+
+    range_val = cst.ROI_DIAMETER
+    if first_only:
+        ut.console_log("Intensities of first pixel only", "yellow")
+        range_val = 1
+
+    pixels_lx = [[[] for y in range(range_val)] for x in range(range_val)]
+    pixels_ly = [[[] for y in range(range_val)] for x in range(range_val)]
+    pixels_intensity = [[[] for y in range(range_val)] for x in range(range_val)]
+
+    for frame_data in tqdm(data):
         intensities = frame_data[0]
         camera_position = frame_data[1]
-        for y in range(cst.ROI_DIAMETER):
-            for x in range(cst.ROI_DIAMETER):
+        for y in range(range_val):
+            for x in range(range_val):
                 p = (x, y, 0)
-                l = (camera_position - p) / ut.euclidean_distance(camera_position[0], camera_position[1], p[0], p[1])
-                pixels_data[y][x] = (l, intensities[y, x])
+                l = (camera_position - p) / np.linalg.norm(camera_position - p)
+                pixels_lx[y][x].append(l[0])
+                pixels_ly[y][x].append(l[1])
+                pixels_intensity[y][x].append(intensities[y][x])
 
-        # extract first pixel values for plot
-        if show_pixel:
-            pixel = pixels_data[0][0]
-            print(pixel)
-            plot_x.append(pixel[0][0])  # light_vector
-            plot_y.append(pixel[0][1])  # light_vector
-            plot_z.append(pixel[1])  # intensity
+    pixels_lx = np.array(pixels_lx)
+    pixels_ly = np.array(pixels_ly)
+    pixels_intensity = np.array(pixels_intensity)
 
-    if show_pixel:
-        plt.scatter(plot_x, plot_y, c=plot_z)
+    if show_pixel_values:
+        # plot only first pixel values
+        lx = pixels_lx[0][0]
+        ly = pixels_ly[0][0]
+        val = pixels_intensity[0][0]
+
+        print("lx", lx)
+        print("ly", ly)
+        print("val", val)
+
+        plt.scatter(lx, ly, c=val)
+        plt.xlabel('lx')
+        plt.ylabel('ly')
         plt.show()
 
-    return np.array(pixels_data)
+    pixels_data = (pixels_lx, pixels_ly, pixels_intensity)
+    return pixels_data
 
 
-def interpolate_intensities(data, show_pixel=False):
+#@jit(target="cuda")
+def interpolate_intensities(data, show_pixel_values=False, first_only=False):
+    from scipy.interpolate import Rbf
     """
     Interpolate pixel intensities
-    :param data: array of tuples (light_vector, intensity), for each pixel
-    light_vector: tuple (lx, ly, lz) for the current pixel
-    intensity: intensity of the pixel with the current light vector
-    :param show_pixel: if True, show first pixel interpolation
+    :param data: array of tuples (pixels_lx, pixels_ly, pixels_intensity), for each pixel
+    pixels_lx: list of lx coordinates for each value, for the current pixel
+    pixels_ly: list of ly coordinates for each value, for the current pixel
+    pixels_intensity: list of intensities, for current pixel
+    :param show_pixel: if True, show first pixel interpolation values
+    :param first_only: compute only first pixel evaluation
     """
     if data is None or len(data) <= 0:
         ut.console_log("Error computing interpolation: results are empty")
 
-    interpolated_data = []
-    i = 0
-    print("Computing interpolation values")
-    for pixel_data in data:
-        print("Frame n° ", i)
-        i += 1
-        light_vector = pixel_data[0]
-        intensity = pixel_data[1]
+    print("Computing interpolation values:")
 
-    if show_pixel:
+    range_val = cst.ROI_DIAMETER
+    if first_only:
+        ut.console_log("Interpolation of first pixel only", "yellow")
+        range_val = 1
+
+    interpolated_intensities = [[[] for y in range(range_val)] for x in range(range_val)]
+
+    pixels_lx = data[0]
+    pixels_ly = data[1]
+    pixels_intensity = data[2]
+    # compute the normalized area domain
+    # roi_area_domain = np.linspace(-1.0, 1.0, 200)
+    # xi, yi = np.meshgrid(roi_area_domain, roi_area_domain)
+    yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
+    for y in tqdm(range(range_val)):
+        for x in range(range_val):
+            lx = pixels_lx[y][x]
+            ly = pixels_ly[y][x]
+            val = pixels_intensity[y][x]
+
+            rbfi = Rbf(lx, ly, val, function='linear')  # radial basis function interpolator instance
+
+            # interpolated values
+            di = rbfi(xi, yi)
+            interpolated_intensities[y][x] = di
+
+    if show_pixel_values:
+        # plot only first pixel values
+        val = interpolated_intensities[0][0]
+
+        print("interpolated_val", val[0][0])
+
+        plt.scatter(xi, yi, c=val)
+        plt.xlabel('lx')
+        plt.ylabel('ly')
         plt.show()
 
-    return np.array(interpolated_data)
+    return interpolated_intensities
 
 
 def compute(video_name='coin1', from_storage=False, storage_filepath=None):
@@ -275,56 +320,70 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     Main function
     :param video_name: name of the video to take
     :param from_storage: if True read results from a saved file, otherwise compute results from skratch
-    :param storage_filepath:  if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
+    :param storage_filepath: if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
     """
 
-    results_file_path = "assets/results_{}.pickle".format(video_name)
+    results_frames_filepath = "assets/frames_results_{}.pickle".format(video_name)
+    results_interpolation_filepath = "assets/interpolation_results_{}.pickle".format(video_name)
 
+    ut.console_log("Step 1: Computing frames values", 'blue')
     if from_storage is True:
         # read a pre-saved results file
         if storage_filepath is not None:
-            results_file_path = from_storage
-        if not os.path.isfile(results_file_path):
+            results_frames_filepath = from_storage
+        if not os.path.isfile(results_frames_filepath):
             raise Exception('Storage results file not found!')
-        ut.console_log("Reading values from storage", 's')
-        results = ut.read_from_file(results_file_path)
+        print("Reading values from storage")
+        results_frames = ut.read_from_file(results_frames_filepath)
     else:
         # compute results from skratch
-        ut.console_log("Generating frames values", 's')
+        print("Generating frames values")
         video_static_path = cst.ASSETS_STATIC_FOLDER + '/{}.mov'.format(video_name)
         video_moving_path = cst.ASSETS_MOVING_FOLDER + '/{}.mp4'.format(video_name)
 
         # extract features directly from video, without saving frame images
         video_static_offset, video_moving_offset, tot_frames = sync_videos(video_static_path, video_moving_path)
 
-        # extract filename from video path in order to create a directory for video frames
-        default_frame_name = 'default_' + os.path.splitext(os.path.basename(video_static_path))[0]
+        # set default frame filename
+        default_frame_name = 'default_{}'.format(video_name)
         # generate default frame from static video
         default_frame_path = generate_video_default_frame(video_path=video_static_path,
                                                           calibration_file_path=cst.INTRINSICS_STATIC_PATH,
                                                           file_name=default_frame_name)
 
-        results = extract_video_frames(static_video_path=video_static_path,
-                                       moving_video_path=video_moving_path,
-                                       tot_frames=tot_frames,
-                                       max_frames=300,
-                                       video_moving_offset=video_moving_offset,
-                                       video_static_offset=video_static_offset,
-                                       start_from_frame=0,
-                                       default_frame_path=default_frame_path)
+        results_frames = extract_video_frames(static_video_path=video_static_path,
+                                              moving_video_path=video_moving_path,
+                                              tot_frames=tot_frames,
+                                              max_frames=300,
+                                              video_moving_offset=video_moving_offset,
+                                              video_static_offset=video_static_offset,
+                                              start_from_frame=0,
+                                              default_frame_path=default_frame_path)
 
-        # write results on file
-        ut.write_on_file(results, results_file_path)
+        # write frames results on file
+        ut.write_on_file(results_frames, results_frames_filepath)
 
+    # debug param, set True to test only first pixel interpolation
+    first_only = False
+
+    ut.console_log("Step 2: Computing pixels intensities", 'blue')
     # compute light vectors intensities
-    data = compute_intensities(results)
+    data = compute_intensities(results_frames, show_pixel_values=False, first_only=first_only)
 
+    ut.console_log("Step 3: Computing interpolation", 'blue')
     # interpolate pixel intensities
-    interpolate_intensities(data)
+    results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=first_only)
+
+    if first_only is False:
+        ut.write_on_file(results_interpolation, results_interpolation_filepath)
+        ut.console_log("OK. Interpolation results saved.", 'green')
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     coin = 1
-    storage_results_save = "assets/results_coin{}_save.pickle".format(coin)
+    storage_results_save = "assets/frames_results_coin{}_save.pickle".format(coin)
+
+    start = timer()
     compute(video_name='coin1', from_storage=True)
+    print("Computation duration: {} s".format(round(timer() - start, 2)))

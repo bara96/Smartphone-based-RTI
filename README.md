@@ -44,5 +44,4 @@ Here the commands to import required libraries with [conda](https://conda.io/)
 <code>conda install -c conda-forge svglib</code>  
 <code>conda install -c anaconda reportlab</code>  
 <code>conda install scikit-image</code>  
-<code>pip install opencv-contrib-python</code> <small>Note: this is required only for SURF detector
-
+<code>conda install numba & conda install cudatoolkit</code>  <small>Note: this is required to run on GPU

@@ -64,6 +64,8 @@ class FeatureMatcher:
         :return:
         """
 
+        static_img_copy = static_img.copy()
+
         if wait_key is False:
             wait_key = 1
         else:
@@ -104,14 +106,14 @@ class FeatureMatcher:
         # cv2.imshow('mov', cv2.resize(moving_img, None, fx=0.5, fy=0.5))
         # cv2.waitKey(0)
         if cnts is None:
-            ut.console_log("Error Moving: No contours detected", 'e')
+            ut.console_log("Error Moving: No contours detected")
             return False
 
         # draw only the longest contour (bigger rectangle)
         rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
         cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
         if self._show_rectangles_canvas:
-            cv2.drawContours(static_img, static_shape_cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
+            cv2.drawContours(static_img_copy, static_shape_cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
             cv2.drawContours(moving_img, cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
 
         ''' Corner Detection'''
@@ -124,7 +126,7 @@ class FeatureMatcher:
                                           useHarrisDetector=False)
 
         if corners is None or len(corners) != 4:
-            ut.console_log("Error Moving: Wrong corners detected", 'e')
+            ut.console_log("Error Moving: Wrong corners detected")
             return False
         corners = np.int0(corners)
         corners = corners.reshape((len(corners), 2))
@@ -148,7 +150,7 @@ class FeatureMatcher:
                     default_corner = (x, y)
                     min_distance = distance
         if default_corner is None:
-            ut.console_log("Error Moving: Default corner not found", 'e')
+            ut.console_log("Error Moving: Default corner not found")
             return False
         self._previous_default_corner = default_corner
 
@@ -169,10 +171,10 @@ class FeatureMatcher:
             cv2.circle(moving_img, third_corner, 1, cst.COLOR_YELLOW, 20)
             cv2.circle(moving_img, fourth_corner, 1, cst.COLOR_ORANGE, 20)
             # static shape corners
-            cv2.circle(static_img, static_shape_points[0], 1, cst.COLOR_BLUE, 20)
-            cv2.circle(static_img, static_shape_points[1], 1, cst.COLOR_GREEN, 20)
-            cv2.circle(static_img, static_shape_points[2], 1, cst.COLOR_YELLOW, 20)
-            cv2.circle(static_img, static_shape_points[3], 1, cst.COLOR_ORANGE, 20)
+            cv2.circle(static_img_copy, static_shape_points[0], 1, cst.COLOR_BLUE, 20)
+            cv2.circle(static_img_copy, static_shape_points[1], 1, cst.COLOR_GREEN, 20)
+            cv2.circle(static_img_copy, static_shape_points[2], 1, cst.COLOR_YELLOW, 20)
+            cv2.circle(static_img_copy, static_shape_points[3], 1, cst.COLOR_ORANGE, 20)
 
         moving_shape_points = (default_corner, second_corner, third_corner, fourth_corner)
 
@@ -182,12 +184,7 @@ class FeatureMatcher:
         camera_position = -np.matrix(R).T * np.matrix(T)
         camera_position = np.array(camera_position).flatten()
         if self._show_light_direction:
-            iut.image_draw_circle(static_img, camera_position[0], camera_position[1], cst.COLOR_RED)
-
-        ''' Extract ROI intensities'''
-        # get pixels intensity for the selected area
-        # intensities is a matrix of pixel[y][x] for gray channel values
-        intensities = ut.get_ROI_intensities(static_img, static_shape_points, roi_diameter=cst.ROI_DIAMETER)
+            iut.image_draw_circle(static_img_copy, camera_position[0], camera_position[1], cst.COLOR_RED)
 
         ''' Homography '''
         if self._show_homography:
@@ -195,13 +192,18 @@ class FeatureMatcher:
             homography, _ = ut.find_homography(moving_shape_points, static_shape_points)
             if homography is not None:
                 img_homography = cv2.warpPerspective(moving_img, homography,
-                                                     (static_img.shape[1], static_img.shape[0]))
+                                                     (static_img_copy.shape[1], static_img_copy.shape[0]))
                 cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
+
+        ''' Extract ROI intensities'''
+        # get pixels intensity for the selected area
+        # intensities is a matrix of pixel[y][x] for gray channel values
+        intensities = ut.get_ROI(static_img, static_shape_points, grayscale=True, show_roi=self._debug)
 
         data = (intensities, camera_position)
 
         if self._show_static_frame:
-            cv2.imshow('Static Camera', cv2.resize(static_img, None, fx=0.4, fy=0.4))
+            cv2.imshow('Static Camera', cv2.resize(static_img_copy, None, fx=0.4, fy=0.4))
         if self._show_moving_frame:
             cv2.imshow('Moving Camera', cv2.resize(moving_img, None, fx=0.5, fy=0.5))
         cv2.waitKey(wait_key)
@@ -231,7 +233,7 @@ class FeatureMatcher:
         rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
         cnts = FeatureMatcher._findContours(canny, True, show_contours=False)
         if cnts is None:
-            ut.console_log("Error Static: No contours detected", 'e')
+            ut.console_log("Error Static: No contours detected")
             return False
 
         cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
@@ -246,7 +248,7 @@ class FeatureMatcher:
                                           useHarrisDetector=False)
 
         if corners is None or len(corners) != 4:
-            ut.console_log("Error Static: Wrong corners detected", 'e')
+            ut.console_log("Error Static: Wrong corners detected")
             return img, None
         corners = np.int0(corners)
         corners = corners.reshape((len(corners), 2))
@@ -276,7 +278,7 @@ class FeatureMatcher:
                 fourth_corner = (x, y)
 
         if second_corner is None or third_corner is None or fourth_corner is None:
-            ut.console_log("Error Static: Wrong corners detected", 'e')
+            ut.console_log("Error Static: Wrong corners detected")
             return img, None
 
         return cnts, (default_corner, second_corner, third_corner, fourth_corner)

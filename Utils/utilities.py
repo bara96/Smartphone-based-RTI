@@ -7,13 +7,15 @@ import cv2
 import numpy as np
 
 
-def console_log(message, status='e'):
-    if status == 'e':
-        print("\033[91m{}\033[0m".format(message))
-    elif status == 'w':
-        print("\033[93m{}\033[0m".format(message))
-    elif status == 's':
-        print("\033[92m{}\033[0m".format(message))
+def console_log(message, color='red'):
+    if color == 'red':
+        print("\n\033[91m{}\033[0m".format(message))
+    elif color == 'green':
+        print("\n\033[92m{}\033[0m".format(message))
+    elif color == 'yellow':
+        print("\n\033[93m{}\033[0m".format(message))
+    elif color == 'blue':
+        print("\n\033[94m{}\033[0m".format(message))
 
 
 def get_camera_intrinsics(calibration_file_path):
@@ -208,18 +210,6 @@ def euclidean_distance(x1, y1, x2, y2):
     return float(dist)
 
 
-def interpolate_RBF(x, y, intensities, light_vectors):
-    from scipy.interpolate import Rbf
-
-    rbfi = Rbf(x_coarse.ravel(), y_coarse.ravel(), data_coarse.ravel())
-
-    interpolated_data = rbfi(x_fine.ravel(), y_fine.ravel()).reshape([x_fine.shape[0],
-                                                                      y_fine.shape[0]])
-
-    plt.imshow(interpolated_data)
-    img_pil.show()
-
-
 def get_corners_center(corners, height, width):
     """
     Get the center point between corners
@@ -250,20 +240,22 @@ def get_corners_center(corners, height, width):
     return x_median, y_median
 
 
-def get_ROI_intensities(static_img, static_shape_points, roi_diameter=300, show_roi=False):
+def get_ROI(static_img, static_shape_points, grayscale=False, show_roi=False):
     """
     Extract Region Of Interest from an image with gray channel
     :param static_img: OpenCv image
     :param static_shape_points: points of the image
-    :param roi_diameter: diameter of the Region Of Interest
+    :param grayscale: if True, return a greyscale image
     :param show_roi: if True, show the extracted image
     :return:
     """
+    roi_radius = round(cst.ROI_DIAMETER / 2)
+
     h, w, _ = static_img.shape
     corners = np.array(static_shape_points)
     x_center, y_center = get_corners_center(corners, h, w)
-    x_min, x_max = x_center - roi_diameter, x_center + roi_diameter
-    y_min, y_max = y_center - roi_diameter, y_center + roi_diameter
+    x_min, x_max = x_center - roi_radius, x_center + roi_radius
+    y_min, y_max = y_center - roi_radius, y_center + roi_radius
 
     if x_min < 0:
         x_min = 1
@@ -275,9 +267,12 @@ def get_ROI_intensities(static_img, static_shape_points, roi_diameter=300, show_
         y_max = h - 1
 
     roi_img = static_img[y_min:y_max, x_min:x_max].copy()
-    roi_img_gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
 
     if show_roi:
         cv2.imshow("roi_img", roi_img)
 
-    return np.array(roi_img_gray)
+    if grayscale is True:
+        roi_img_gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+        return np.array(roi_img_gray)
+
+    return roi_img
