@@ -9,26 +9,50 @@ from timeit import default_timer as timer
 
 
 def Mouse_Event(event, x, y, flags, param):
-    global roi_img
-    global interpolation_intensities
+    lx, ly = draw_light(x, y)
 
-    ly = -1
-    lx = -1
-
-    img = roi_img.copy()
     # img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     if event == cv2.EVENT_LBUTTONDOWN:
         # apply relighting
-        for y in range(cst.ROI_DIAMETER):
-            for x in range(cst.ROI_DIAMETER):
-                intensities = interpolation_intensities[y][x]
-                # transform lx, ly values to interpolation_intensities coordinates
-                int_ly, int_lx = (1 + ly) * 100, (1 + lx) * 100
-                intensity = intensities[int_ly][int_lx]
-                img[y][x] = intensity
-                # img[y][x] = get_pixel_intensity(roi_img[y][x], img_gray[y][x], intensity)
+        draw_relighting(lx, ly)
 
-        cv2.imshow('Relighting', img)
+
+def draw_light(x, y):
+    global light_pos_img
+
+    img = light_pos_img.copy()
+    cv2.circle(img, (x, y), 1, cst.COLOR_PURPLE, 5)
+    cv2.imshow('Light Position', img)
+    h, w = light_pos_img.shape
+    lx = 2 * (x / w) - 1
+    ly = 2 * (y / h) - 1
+    lx = round(lx, 2)
+    ly = round(ly, 2)
+    print(lx, ly)
+
+    return lx, ly
+
+
+def draw_relighting(lx, ly):
+    global roi_img
+    global interpolation_intensities
+
+    img = roi_img.copy()
+
+    int_ly = round((1 + ly) / 2 * 100)
+    int_lx = round((1 + lx) / 2 * 100)
+    print(int_lx, int_ly)
+
+    for y in range(cst.ROI_DIAMETER):
+        for x in range(cst.ROI_DIAMETER):
+            intensities = interpolation_intensities[y][x]
+            # transform lx, ly values to interpolation_intensities coordinates
+
+            intensity = intensities[int_ly][int_lx]
+            img[y][x] = intensity
+            # img[y][x] = get_pixel_intensity(roi_img[y][x], img_gray[y][x], intensity)
+
+    cv2.imshow('Relighting', img)
 
 
 def get_pixel_intensity(bgr, gray, intensity):
@@ -53,6 +77,7 @@ def compute(video_name='coin1', storage_filepath=None):
     interpolation_intensities: list of interpolated values foreach pixel
     """
     global roi_img
+    global light_pos_img
     global interpolation_intensities
 
     results_filepath = "assets/interpolation_results_{}.pickle".format(video_name)
@@ -79,14 +104,23 @@ def compute(video_name='coin1', storage_filepath=None):
     fm = FeatureMatcher()
     frame_default = cv2.imread(default_frame_path)
     static_shape_cnts, static_shape_points = fm.computeStaticShape(frame_default)
-    roi_img = ut.get_ROI(frame_default, static_shape_points, grayscale=True)
+    roi_img = ut.get_ROI(frame_default, static_shape_points)
+    roi_img = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
 
-    ut.console_log("Relightin On. \n", 'green')
+    h, w = roi_img.shape
+    h2, w2 = int(h / 2), int(w / 2)
+    light_pos_img = np.zeros((h, w), np.uint8)
+    cv2.line(light_pos_img, (0, h2), (w, h2), (255, 255, 255), 1)
+    cv2.line(light_pos_img, (w2, 0), (w2, h), (255, 255, 255), 1)
+
     # Read input image, and create output image
     cv2.imshow('Relighting', roi_img)
+    draw_light(w2, h2)
 
     # set Mouse Callback method
-    cv2.setMouseCallback('Relighting', Mouse_Event)
+    cv2.setMouseCallback('Light Position', Mouse_Event)
+
+    ut.console_log("Relightin On. \n", 'green')
     cv2.waitKey(0)
 
 
