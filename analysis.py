@@ -109,8 +109,8 @@ def extract_video_frames(static_video_path, moving_video_path,
     frame_moving_cursor = video_moving_offset  # skip offset
 
     # skip two seconds
-    # frame_static_cursor += 30
-    # frame_moving_cursor += 30
+    frame_static_cursor += 60
+    frame_moving_cursor += 60
 
     start_from_frame = 0    # starting from a given frame
     max_frames_to_read = int(tot_frames / 8)    # set a max n° of frames to read
@@ -146,7 +146,7 @@ def extract_video_frames(static_video_path, moving_video_path,
     for i in tqdm(range(start_from_frame, max_frames_to_read - 1)):
         ret_static, frame_static = video_static.read()
         ret_moving, frame_moving = video_moving.read()
-        if ret_static is False or ret_moving is False:
+        if ret_static is False or ret_moving is False or i > 330:
             ut.console_log('Error: Null frame')
             continue
 
@@ -306,8 +306,8 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     :param storage_filepath: if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
     """
 
-    results_frames_filepath = "assets/frames_results_{}.pickle".format(video_name)
-    results_interpolation_filepath = "assets/interpolation_results_{}.pickle".format(video_name)
+    results_frames_filepath = "assets/frames_results_{}".format(video_name)
+    results_interpolation_filepath = "assets/interpolation_results_{}".format(video_name)
 
     ut.console_log("Step 1: Computing frames values", 'blue')
     if from_storage is True:
@@ -339,6 +339,7 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
                                               video_static_offset=video_static_offset,
                                               default_frame_path=default_frame_path)
 
+        np.array(results_frames)
         # write frames results on file
         ut.write_on_file(results_frames, results_frames_filepath)
 
@@ -347,23 +348,22 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
 
     ut.console_log("Step 2: Computing pixels intensities", 'blue')
     # compute light vectors intensities
-    data = compute_intensities(results_frames, show_pixel_values=True, first_only=first_only)
+    data = compute_intensities(results_frames, show_pixel_values=False, first_only=first_only)
 
     ut.console_log("Step 3: Computing interpolation", 'blue')
     # interpolate pixel intensities
-    results_interpolation = interpolate_intensities(data, show_pixel_values=True, first_only=first_only)
+    results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=first_only)
 
     if first_only is False:
         ut.write_on_file(results_interpolation, results_interpolation_filepath)
-        print("Interpolation results saved.")
 
     ut.console_log("OK. Computation completed", 'green')
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    coin = 2
-    storage_results_save = "assets/frames_results_coin{}.pickle".format(coin)
+    coin = 3
+    storage_results_save = "assets/frames_results_coin{}".format(coin)
 
     start = timer()
     compute(video_name='coin{}'.format(coin), from_storage=False)

@@ -42,9 +42,12 @@ def write_on_file(data, filename):
     :param data: Object to save
     :param filename: filename of the pickle file to save
     """
-    import pickle
+    filename = filename + '.npy'
+
     with open(filename, "wb") as f:
-        pickle.dump(data, f)
+        np.save(f, data)
+
+    console_log("Saved file {}".format(filename), 'yellow')
 
 
 def read_from_file(filename):
@@ -53,13 +56,14 @@ def read_from_file(filename):
     :param filename: filename of the pickle file to read
     :return:
     """
-    import pickle
+    filename = filename + '.npy'
 
     if not os.path.isfile(filename):
-        raise Exception('Pickle file not found!')
+        raise Exception('Storage file not found!')
 
     with open(filename, 'rb') as f:
-        results = pickle.load(f)
+        results = np.load(f, allow_pickle=True)
+
     return results
 
 

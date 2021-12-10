@@ -1,8 +1,9 @@
-import cv2
 import constants as cst
 import analysis
 from FeatureMatcher import FeatureMatcher
 from Utils import utilities as ut
+import cv2
+import matplotlib.pyplot as plt
 import os
 import numpy as np
 from timeit import default_timer as timer
@@ -80,17 +81,15 @@ def compute(video_name='coin1', storage_filepath=None):
     global light_pos_img
     global interpolation_intensities
 
-    results_filepath = "assets/interpolation_results_{}.pickle".format(video_name)
+    results_filepath = "assets/interpolation_results_{}".format(video_name)
 
     if storage_filepath is not None:
         results_filepath = storage_filepath
-    if not os.path.isfile(results_filepath):
-        raise Exception('Storage results file not found!')
 
     print("Reading interpolation values")
     interpolation_intensities = ut.read_from_file(results_filepath)
 
-    yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
+    # yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
 
     default_frame_path = "assets/default_" + video_name + ".png"
     if not os.path.isfile(default_frame_path):
