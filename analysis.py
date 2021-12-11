@@ -141,6 +141,8 @@ def extract_video_frames(static_video_path, moving_video_path,
     frame_default = cv2.imread(default_frame_path)
     static_shape_cnts, static_shape_points = fm.computeStaticShape(frame_default)
 
+    #light_pos_img = ut.get_light_roi_test(frame_default, static_shape_points)
+
     dataset = []
     failures_consecutive_count = 0
     for i in tqdm(range(start_from_frame, max_frames_to_read - 1)):
@@ -157,6 +159,8 @@ def extract_video_frames(static_video_path, moving_video_path,
                                     wait_key=False)
         if result is not False:
             dataset.append(result)
+            camera_position = result[1]
+            #ut.draw_light_test(camera_position, light_pos_img)
             failures_consecutive_count = 0
         else:
             failures_consecutive_count += 1
