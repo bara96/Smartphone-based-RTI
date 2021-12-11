@@ -112,8 +112,8 @@ def extract_video_frames(static_video_path, moving_video_path,
     # frame_static_cursor += 60
     # frame_moving_cursor += 60
 
-    start_from_frame = 0    # starting from a given frame
-    max_frames_to_read = int(tot_frames / 8)    # set a max n° of frames to read
+    start_from_frame = 0  # starting from a given frame
+    max_frames_to_read = int(tot_frames / 8)  # set a max n° of frames to read
     offset = max(video_static_offset, video_moving_offset)
     frame_skip = math.trunc((tot_frames - offset) / max_frames_to_read)
 
@@ -270,6 +270,8 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
     # roi_area_domain = np.linspace(-1.0, 1.0, 200)
     # xi, yi = np.meshgrid(roi_area_domain, roi_area_domain)
     yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
+    yi = np.around(yi, decimals=2)
+    xi = np.around(xi, decimals=2)
 
     interpolated_intensities = [[[] for y in range(range_val)] for x in range(range_val)]
     for y in tqdm(range(range_val)):
@@ -296,6 +298,32 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
         plt.show()
 
     return interpolated_intensities
+
+
+def prepare_data(interpolation_intensities):
+    """
+    Prepare images for each camera position (ly, lx) with interpolated values
+    :param interpolation_intensities: list of interpolated values for each pixel and each camera pose
+    interpolation_intensities[y][x][ly][lx] = intensity
+    :return:
+    """
+    yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
+    xi = np.around(xi, decimals=2)
+    yi = xi[0]
+    xi = xi[0]
+
+    # prepare images for each position
+    interpolated_images = [[[] for y in range(len(yi))] for x in range(len(xi))]
+    for ly in tqdm(range(len(yi))):
+        for lx in range(len(xi)):
+            # get image for current light position ly lx
+            img = np.empty((cst.ROI_DIAMETER, cst.ROI_DIAMETER), dtype=np.int32)
+            for y in range(cst.ROI_DIAMETER):
+                for x in range(cst.ROI_DIAMETER):
+                    img[y][x] = interpolation_intensities[y][x][ly][lx]
+            interpolated_images[ly][lx] = img
+
+    return interpolated_images
 
 
 def compute(video_name='coin1', from_storage=False, storage_filepath=None):
@@ -354,8 +382,11 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     # interpolate pixel intensities
     results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=first_only)
 
+    ut.console_log("Step 4: Preparing interpolation data", 'blue')
+    results_images = prepare_data(results_interpolation)
+
     if first_only is False:
-        ut.write_on_file(results_interpolation, results_interpolation_filepath, compressed=False)
+        ut.write_on_file(results_images, results_interpolation_filepath, compressed=False)
 
     ut.console_log("OK. Computation completed", 'green')
 

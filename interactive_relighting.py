@@ -2,23 +2,43 @@ import constants as cst
 import analysis
 from FeatureMatcher import FeatureMatcher
 from Utils import utilities as ut
-import cv2
-import matplotlib.pyplot as plt
 import os
+import cv2
 import numpy as np
 from timeit import default_timer as timer
 
 
-def Mouse_Event(event, x, y, flags, param):
+def Relighting_Event(event, x, y, flags, param):
+    """
+    Relighting event (mouse click)
+    :param event:
+    :param x:
+    :param y:
+    :param flags:
+    :param param:
+    """
+    global interpolation_results
     lx, ly = draw_light(x, y)
 
     # img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     if event == cv2.EVENT_LBUTTONDOWN:
         # apply relighting
-        draw_relighting(lx, ly)
+        int_ly = round((1 + ly) / 2 * 100)
+        int_lx = round((1 + lx) / 2 * 100)
+        print(int_ly, int_lx)
+
+        img = interpolation_results[int_ly][int_lx]
+
+        cv2.imshow('Relighting', img)
 
 
 def draw_light(x, y):
+    """
+    Draw light position
+    :param x:
+    :param y:
+    :return:
+    """
     global light_pos_img
 
     img = light_pos_img.copy()
@@ -32,28 +52,6 @@ def draw_light(x, y):
     print(lx, ly)
 
     return lx, ly
-
-
-def draw_relighting(lx, ly):
-    global roi_img
-    global interpolation_intensities
-
-    img = roi_img.copy()
-
-    int_ly = round((1 + ly) / 2 * 100)
-    int_lx = round((1 + lx) / 2 * 100)
-    print(int_lx, int_ly)
-
-    for y in range(cst.ROI_DIAMETER):
-        for x in range(cst.ROI_DIAMETER):
-            intensities = interpolation_intensities[y][x]
-            # transform lx, ly values to interpolation_intensities coordinates
-
-            intensity = intensities[int_ly][int_lx]
-            img[y][x] = intensity
-            # img[y][x] = get_pixel_intensity(roi_img[y][x], img_gray[y][x], intensity)
-
-    cv2.imshow('Relighting', img)
 
 
 def get_pixel_intensity(bgr, gray, intensity):
@@ -75,21 +73,18 @@ def compute(video_name='coin1', storage_filepath=None):
     Main function
     :param video_name: name of the video to take
     :param storage_filepath: if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
-    interpolation_intensities: list of interpolated values foreach pixel
+    interpolation_results: list of interpolated values foreach pixel
     """
-    global roi_img
     global light_pos_img
-    global interpolation_intensities
+    global interpolation_results
 
     results_filepath = "assets/interpolation_results_{}".format(video_name)
 
     if storage_filepath is not None:
         results_filepath = storage_filepath
 
-    print("Reading interpolation values")
-    interpolation_intensities = ut.read_from_file(results_filepath, compressed=False)
-
-    # yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
+    print("Reading interpolation results")
+    interpolation_results = ut.read_from_file(results_filepath, compressed=False)
 
     default_frame_path = "assets/default_" + video_name + ".png"
     if not os.path.isfile(default_frame_path):
@@ -117,7 +112,7 @@ def compute(video_name='coin1', storage_filepath=None):
     draw_light(w2, h2)
 
     # set Mouse Callback method
-    cv2.setMouseCallback('Light Position', Mouse_Event)
+    cv2.setMouseCallback('Light Position', Relighting_Event)
 
     ut.console_log("Relightin On. \n", 'green')
     cv2.waitKey(0)
