@@ -3,6 +3,7 @@ import numpy as np
 import constants as cst
 from Utils import audio_utils as aut
 from Utils import image_utils as iut
+from Utils import email_utils as eut
 from Utils import utilities as ut
 from FeatureMatcher import FeatureMatcher
 from scipy.interpolate import Rbf
@@ -342,12 +343,13 @@ def prepare_images_data(data, first_only=False):
     return interpolated_images
 
 
-def compute(video_name='coin1', from_storage=False, storage_filepath=None):
+def compute(video_name='coin1', from_storage=False, storage_filepath=None, notification_email=True):
     """
     Main function
     :param video_name: name of the video to take
     :param from_storage: if True read results from a saved file, otherwise compute results from skratch
     :param storage_filepath: if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
+    :param notification_email: send a notification email when finished
     """
 
     results_frames_filepath = "assets/frames_results_{}".format(video_name)
@@ -405,6 +407,9 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
         ut.write_on_file(results_images, results_interpolation_filepath, compressed=False)
 
     ut.console_log("OK. Computation completed", 'green')
+
+    if notification_email:
+        eut.send_email("matteo.baratella96@gmail.com", message_subject="RTI Notification", message_txt="Interpolation finished")
 
 
 # Press the green button in the gutter to run the script.

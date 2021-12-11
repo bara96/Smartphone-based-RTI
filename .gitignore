@@ -7,3 +7,5 @@ assets/frames/
 assets/match_results/
 assets/transformation_results/
 assets/interpolation_results_*
+
+.env
