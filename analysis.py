@@ -409,7 +409,9 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None, notif
     ut.console_log("OK. Computation completed", 'green')
 
     if notification_email:
-        eut.send_email("matteo.baratella96@gmail.com", message_subject="RTI Notification", message_txt="Interpolation finished")
+        eut.send_email(receiver_email="matteo.baratella96@gmail.com",
+                       message_subject="RTI Notification",
+                       message_txt="Interpolation finished")
 
 
 # Press the green button in the gutter to run the script.
