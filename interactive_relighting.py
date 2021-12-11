@@ -87,7 +87,7 @@ def compute(video_name='coin1', storage_filepath=None):
         results_filepath = storage_filepath
 
     print("Reading interpolation values")
-    interpolation_intensities = ut.read_from_file(results_filepath)
+    interpolation_intensities = ut.read_from_file(results_filepath, compressed=False)
 
     # yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
 
@@ -126,7 +126,7 @@ def compute(video_name='coin1', storage_filepath=None):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     coin = 1
-    storage_results_save = "assets/frames_results_coin{}_save.pickle".format(coin)
+    storage_results_save = "assets/frames_results_coin{}".format(coin)
 
     start = timer()
     compute(video_name='coin1')

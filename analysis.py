@@ -355,7 +355,7 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=first_only)
 
     if first_only is False:
-        ut.write_on_file(results_interpolation, results_interpolation_filepath)
+        ut.write_on_file(results_interpolation, results_interpolation_filepath, compressed=False)
 
     ut.console_log("OK. Computation completed", 'green')
 
