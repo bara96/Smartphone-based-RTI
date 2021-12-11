@@ -8,7 +8,7 @@ import numpy as np
 from timeit import default_timer as timer
 
 
-def Relighting_Event(event, x, y, flags, param):
+def relighting_event(event, x, y, flags, param):
     """
     Relighting event (mouse click)
     :param event:
@@ -18,25 +18,25 @@ def Relighting_Event(event, x, y, flags, param):
     :param param:
     """
     global interpolation_results
-    lx, ly = draw_light(x, y)
+    lx, ly = draw_light(x, y, show_coordinates=True)
 
     # img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     if event == cv2.EVENT_LBUTTONDOWN:
         # apply relighting
         int_ly = round((1 + ly) / 2 * 100)
         int_lx = round((1 + lx) / 2 * 100)
-        print(int_ly, int_lx)
+        print("Cursor: ", int_ly, int_lx)
 
-        img = interpolation_results[int_ly][int_lx]
-
+        img = np.array(interpolation_results[int_ly][int_lx], dtype=np.uint8)
         cv2.imshow('Relighting', img)
 
 
-def draw_light(x, y):
+def draw_light(x, y, show_coordinates=False):
     """
     Draw light position
-    :param x:
-    :param y:
+    :param x: x coordinate
+    :param y: y coordinate
+    :param show_coordinates: if True, show curso coordinates
     :return:
     """
     global light_pos_img
@@ -49,7 +49,9 @@ def draw_light(x, y):
     ly = 2 * (y / h) - 1
     lx = round(lx, 2)
     ly = round(ly, 2)
-    print(lx, ly)
+
+    if show_coordinates:
+        print(lx, ly)
 
     return lx, ly
 
@@ -112,7 +114,7 @@ def compute(video_name='coin1', storage_filepath=None):
     draw_light(w2, h2)
 
     # set Mouse Callback method
-    cv2.setMouseCallback('Light Position', Relighting_Event)
+    cv2.setMouseCallback('Light Position', relighting_event)
 
     ut.console_log("Relightin On. \n", 'green')
     cv2.waitKey(0)
