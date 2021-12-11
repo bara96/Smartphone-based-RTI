@@ -300,27 +300,39 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
     return interpolated_intensities
 
 
-def prepare_data(interpolation_intensities):
+def prepare_images_data(data, first_only=False):
     """
     Prepare images for each camera position (ly, lx) with interpolated values
-    :param interpolation_intensities: list of interpolated values for each pixel and each camera pose
+    :param data: list of interpolated values for each pixel (y,x) and each light direction (ly,lx)
     interpolation_intensities[y][x][ly][lx] = intensity
+    :param first_only: compute only first pixel evaluation
     :return:
     """
+
+    if data is None or len(data) <= 0:
+        raise Exception("Error preparing images: results are empty")
+
+    print("Preparing images values:")
+
     yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
     xi = np.around(xi, decimals=2)
     yi = xi[0]
     xi = xi[0]
+
+    range_val = cst.ROI_DIAMETER
+    if first_only:
+        ut.console_log("Interpolation of first pixel only", "yellow")
+        range_val = 1
 
     # prepare images for each position
     interpolated_images = [[[] for y in range(len(yi))] for x in range(len(xi))]
     for ly in tqdm(range(len(yi))):
         for lx in range(len(xi)):
             # get image for current light position ly lx
-            img = np.empty((cst.ROI_DIAMETER, cst.ROI_DIAMETER), dtype=np.int32)
-            for y in range(cst.ROI_DIAMETER):
-                for x in range(cst.ROI_DIAMETER):
-                    img[y][x] = interpolation_intensities[y][x][ly][lx]
+            img = np.empty((range_val, range_val), dtype=np.int32)
+            for y in range(range_val):
+                for x in range(range_val):
+                    img[y][x] = data[y][x][ly][lx]
             interpolated_images[ly][lx] = img
 
     return interpolated_images
@@ -383,7 +395,7 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None):
     results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=first_only)
 
     ut.console_log("Step 4: Preparing interpolation data", 'blue')
-    results_images = prepare_data(results_interpolation)
+    results_images = prepare_images_data(results_interpolation)
 
     if first_only is False:
         ut.write_on_file(results_images, results_interpolation_filepath, compressed=False)
