@@ -101,11 +101,8 @@ def compute(video_name='coin1', storage_filepath=None):
     roi_img = ut.get_ROI(frame_default, static_shape_points)
     roi_img = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
 
-    h, w = roi_img.shape
-    h2, w2 = int(h / 2), int(w / 2)
-    light_pos_img = np.zeros((h, w), np.uint8)
-    cv2.line(light_pos_img, (0, h2), (w, h2), (255, 255, 255), 1)
-    cv2.line(light_pos_img, (w2, 0), (w2, h), (255, 255, 255), 1)
+    light_pos_img = ut.create_light_roi(frame_default, static_shape_points)
+    h2, w2 = int(light_pos_img.shape[0]/2), int(light_pos_img.shape[1]/2)
 
     # Read input image, and create output image
     cv2.imshow('Relighting', roi_img)

@@ -321,7 +321,7 @@ def get_ROI(static_img, static_shape_points, grayscale=False, show_roi=False):
     return roi_img
 
 
-def get_light_roi_test(frame_default, static_shape_points):
+def create_light_roi(frame_default, static_shape_points):
     roi_img = get_ROI(frame_default, static_shape_points)
     roi_img = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
     h, w = roi_img.shape
@@ -330,14 +330,3 @@ def get_light_roi_test(frame_default, static_shape_points):
     cv2.line(light_pos_img, (0, h2), (w, h2), (255, 255, 255), 1)
     cv2.line(light_pos_img, (w2, 0), (w2, h), (255, 255, 255), 1)
     return light_pos_img
-
-
-def draw_light_test(camera_position, light_pos_img):
-    p = (200, 200, 0)
-    l = (camera_position - p) / np.linalg.norm(camera_position - p)
-    img = light_pos_img.copy()
-    x = int(2 * (1 + l[0]) * 100)
-    y = int(2 * (1 + l[1]) * 100)
-
-    cv2.circle(img, (x, y), 1, cst.COLOR_PURPLE, 5)
-    cv2.imshow('Light Position', img)

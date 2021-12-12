@@ -178,13 +178,29 @@ class FeatureMatcher:
 
         moving_shape_points = (default_corner, second_corner, third_corner, fourth_corner)
 
+        ''' Extract ROI intensities'''
+        # get pixels intensity for the selected area
+        # intensities is a matrix of pixel[y][x] for gray channel values
+        roi_intensities = ut.get_ROI(static_img, static_shape_points, grayscale=True, show_roi=self._debug)
+
         ''' Camera Pose'''
         # find camera pose
         R, T = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
         camera_position = -np.matrix(R).T * np.matrix(T)
         camera_position = np.array(camera_position).flatten()
         if self._show_light_direction:
+            # draw light area on static frame
             iut.image_draw_circle(static_img_copy, camera_position[0], camera_position[1], cst.COLOR_RED)
+            # create light ROI
+            light_pos_img = ut.create_light_roi(static_img, static_shape_points)
+            # draw light position, taking p as refer pixel
+            h2, w2 = int(static_img.shape[0] / 2), int(static_img.shape[1] / 2)
+            p = (h2, w2, 0)
+            l = (camera_position - p) / np.linalg.norm(camera_position - p)
+            img = light_pos_img.copy()
+            x, y = int(2 * (1 + l[0]) * 100), int(2 * (1 + l[1]) * 100)
+            cv2.circle(img, (x, y), 1, (255, 255, 255), 5)
+            cv2.imshow('Light Position', img)
 
         ''' Homography '''
         if self._show_homography:
@@ -195,12 +211,7 @@ class FeatureMatcher:
                                                      (static_img_copy.shape[1], static_img_copy.shape[0]))
                 cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
 
-        ''' Extract ROI intensities'''
-        # get pixels intensity for the selected area
-        # intensities is a matrix of pixel[y][x] for gray channel values
-        intensities = ut.get_ROI(static_img, static_shape_points, grayscale=True, show_roi=self._debug)
-
-        data = (intensities, camera_position)
+        data = (roi_intensities, camera_position)
 
         if self._show_static_frame:
             cv2.imshow('Static Camera', cv2.resize(static_img_copy, None, fx=0.4, fy=0.4))
