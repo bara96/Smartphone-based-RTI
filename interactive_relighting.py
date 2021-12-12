@@ -20,15 +20,13 @@ def relighting_event(event, x, y, flags, param):
     global interpolation_results
     lx, ly = draw_light(x, y, show_coordinates=True)
 
-    # img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    if event == cv2.EVENT_LBUTTONDOWN:
-        # apply relighting
-        int_ly = round((1 + ly) / 2 * 100)
-        int_lx = round((1 + lx) / 2 * 100)
-        print("Cursor: ", int_ly, int_lx)
+    # apply relighting
+    int_ly = round((1 + ly) / 2 * 100)
+    int_lx = round((1 + lx) / 2 * 100)
+    #print("Cursor: ", int_ly, int_lx)
 
-        img = np.array(interpolation_results[int_ly][int_lx], dtype=np.uint8)
-        cv2.imshow('Relighting', img)
+    img = np.array(interpolation_results[int_ly][int_lx], dtype=np.uint8)
+    cv2.imshow('Relighting', img)
 
 
 def draw_light(x, y, show_coordinates=False):

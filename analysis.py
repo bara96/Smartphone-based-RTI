@@ -265,7 +265,6 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
 
     range_val = cst.ROI_DIAMETER
     if first_only:
-        ut.console_log("Interpolation of first pixel only", "yellow")
         range_val = 1
 
     pixels_lx = data[0]
@@ -326,7 +325,6 @@ def prepare_images_data(data, first_only=False):
 
     range_val = cst.ROI_DIAMETER
     if first_only:
-        ut.console_log("Interpolation of first pixel only", "yellow")
         range_val = 1
 
     # prepare images for each position
@@ -343,24 +341,27 @@ def prepare_images_data(data, first_only=False):
     return interpolated_images
 
 
-def compute(video_name='coin1', from_storage=False, storage_filepath=None, notification_email=True):
+def compute(video_name='coin1', from_storage=False, storage_filepath=None, notification_email=True, debug=False):
     """
     Main function
     :param video_name: name of the video to take
     :param from_storage: if True read results from a saved file, otherwise compute results from skratch
     :param storage_filepath: if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
     :param notification_email: send a notification email when finished
+    :param debug: compute a debug run with only the first pixel
     """
 
     results_frames_filepath = "assets/frames_results_{}".format(video_name)
     results_interpolation_filepath = "assets/interpolation_results_{}".format(video_name)
 
-    ut.console_log("Step 1: Computing frames values", 'blue')
+    if debug:
+        ut.console_log("Notice: computing in debug mode (first pixel only)", "yellow")
+
+    ut.console_log("Step 1: Computing frames values", 'blue', newline=True)
     if from_storage is True:
         # read a pre-saved results file
         if storage_filepath is not None:
             results_frames_filepath = storage_filepath
-        print("Reading values from storage")
         results_frames = ut.read_from_file(results_frames_filepath)
     else:
         # compute results from skratch
@@ -389,29 +390,26 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None, notif
         # write frames results on file
         ut.write_on_file(results_frames, results_frames_filepath)
 
-    # debug param, set True to test only first pixel interpolation
-    first_only = False
-
-    ut.console_log("Step 2: Computing pixels intensities", 'blue')
+    ut.console_log("Step 2: Computing pixels intensities", 'blue', newline=True)
     # compute light vectors intensities
-    data = compute_intensities(results_frames, show_pixel_values=False, first_only=first_only)
+    data = compute_intensities(results_frames, show_pixel_values=False, first_only=debug)
 
-    ut.console_log("Step 3: Computing interpolation", 'blue')
+    ut.console_log("Step 3: Computing interpolation", 'blue', newline=True)
     # interpolate pixel intensities
-    results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=first_only)
+    results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=debug)
 
-    ut.console_log("Step 4: Preparing interpolation data", 'blue')
-    results_images = prepare_images_data(results_interpolation, first_only=first_only)
+    ut.console_log("Step 4: Preparing images data", 'blue', newline=True)
+    results_images = prepare_images_data(results_interpolation, first_only=debug)
 
-    if first_only is False:
+    if debug is False:
         ut.write_on_file(results_images, results_interpolation_filepath, compressed=False)
 
-    ut.console_log("OK. Computation completed", 'green')
+        if notification_email:
+            eut.send_email(receiver_email="matteo.baratella96@gmail.com",
+                           message_subject="RTI Notification",
+                           message_txt="Interpolation finished")
 
-    if notification_email:
-        eut.send_email(receiver_email="matteo.baratella96@gmail.com",
-                       message_subject="RTI Notification",
-                       message_txt="Interpolation finished")
+    ut.console_log("OK. Computation completed", 'green', newline=True)
 
 
 # Press the green button in the gutter to run the script.
@@ -420,5 +418,8 @@ if __name__ == '__main__':
     storage_results_save = "assets/frames_results_coin{}".format(coin)
 
     start = timer()
-    compute(video_name='coin{}'.format(coin), from_storage=True)
-    print("Computation duration: {} s".format(round(timer() - start, 2)))
+    compute(video_name='coin{}'.format(coin), from_storage=True, debug=False)
+    time = round(timer() - start, 2)
+    minutes = round(time / 60)
+    seconds = time - (minutes * 60)
+    print("Computation duration: {} m {} s".format(minutes, seconds))

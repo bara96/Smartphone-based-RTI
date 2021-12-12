@@ -8,15 +8,24 @@ import numpy as np
 import os
 
 
-def console_log(message, color='red'):
+def console_log(message, color='red', newline=False):
+    """
+    Print a colored console message
+    :param message:
+    :param color:
+    :param newline:
+    """
+    nl = ''
+    if newline:
+        nl = '\n'
     if color == 'red':
-        print("\n\033[91m{}\033[0m".format(message))
+        print("{}\033[91m{}\033[0m".format(nl, message))
     elif color == 'green':
-        print("\n\033[92m{}\033[0m".format(message))
+        print("{}\033[92m{}\033[0m".format(nl, message))
     elif color == 'yellow':
-        print("\n\033[93m{}\033[0m".format(message))
+        print("{}\033[93m{}\033[0m".format(nl, message))
     elif color == 'blue':
-        print("\n\033[94m{}\033[0m".format(message))
+        print("{}\033[94m{}\033[0m".format(nl, message))
 
 
 def get_camera_intrinsics(calibration_file_path):
@@ -47,6 +56,8 @@ def write_on_file(data, filename, compressed=True):
     import pickle
     import _pickle as cPickle
 
+    print("Writing on file {}".format(filename))
+
     if compressed:
         filename = filename + '.pbz2'
         with bz2.BZ2File(filename, "wb") as f:
@@ -56,7 +67,7 @@ def write_on_file(data, filename, compressed=True):
         with open(filename, "wb") as f:
             pickle.dump(data, f)
 
-    console_log("Saved file {}".format(filename), 'yellow')
+    print("Saved file {}".format(filename))
 
 
 def read_from_file(filename, compressed=True):
@@ -77,6 +88,8 @@ def read_from_file(filename, compressed=True):
 
     if not os.path.isfile(filename):
         raise Exception('Storage file not found!')
+
+    print("Reading from file {}".format(filename))
 
     if compressed:
         with bz2.BZ2File(filename, 'rb') as f:
