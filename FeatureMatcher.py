@@ -1,8 +1,7 @@
-import os
 import cv2
 import constants as cst
-from matplotlib import pyplot as plt
-import utilities as ut
+from Utils import utilities as ut
+from Utils import image_utils as iut
 import numpy as np
 
 
@@ -24,7 +23,8 @@ class FeatureMatcher:
                                show_light_direction=False)
 
     def setShowParams(self, show_static_frame=True, show_moving_frame=True, show_rectangle_canvas=False,
-                      show_corners=False, show_previous_corners=False, show_homography=False, show_light_direction=False):
+                      show_corners=False, show_previous_corners=False, show_homography=False,
+                      show_light_direction=False, debug=False):
         """
         Set show parameters
         :param show_static_frame: show default rectangle shape
@@ -34,6 +34,7 @@ class FeatureMatcher:
         :param show_previous_corners: show previous detected corners
         :param show_homography: show homography between static and moving frames
         :param show_light_direction: show light direction
+        :param debug: show debug info
         """
         self._show_static_frame = show_static_frame
         self._show_moving_frame = show_moving_frame
@@ -42,57 +43,77 @@ class FeatureMatcher:
         self._show_previous_corners = show_previous_corners
         self._show_homography = show_homography
         self._show_light_direction = show_light_direction
+        self._debug = debug
 
     def resetPreviousCorners(self):
         """
         Reset previous corners points
         """
-        self._previous_third_corner = None
+        self._previous_default_corner = None
         self._previous_second_corner = None
+        self._previous_third_corner = None
 
-    def extractFeatures(self, moving_img, static_img, static_shape_points, wait_key=False):
+    def extractFeatures(self, moving_img, static_img, static_shape_points, static_shape_cnts, wait_key=False):
         """
         Feature matching and homography check of given image
         :param moving_img: OpenCv image
         :param static_img: OpenCv image: default rectangle
-        :param static_shape_points: points of the default rectangle to use into homography check
+        :param static_shape_points: points of the static shape
+        :param static_shape_cnts: contours of the static shape
         :param wait_key: specify if wait to user input or not when showing frames
         :return:
         """
+
+        static_img_copy = static_img.copy()
 
         if wait_key is False:
             wait_key = 1
         else:
             wait_key = 0
 
-        data = []
-
         height, width, _ = moving_img.shape
 
         ''' Image Enchanting '''
-        gray = ut.enchant_brightness_and_contrast(moving_img)
+        gray = iut.enchant_brightness_and_contrast(moving_img)
         gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
         gray = 255 - gray
-        gray = ut.image_blur(gray, iterations=5)
-        # gray = ut.enchant_morphological(gray, [cv2.MORPH_CLOSE], iterations=1)
 
-        ''' Image Refinement'''
-        # find image edges
-        canny = self._findEdges(gray)
+        iterations = 2
+        cnts = None
+        while iterations >= 0:
+            gray_blurr = iut.image_blur(gray, iterations=iterations)
+            # gray = ut.enchant_morphological(gray, [cv2.MORPH_CLOSE], iterations=1)
 
-        # refine all contours
-        cnts = self._findContours(canny)
-        cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
+            ''' Image Refinement'''
+            # find image edges
+            canny = self._findEdges(gray_blurr)
+
+            # refine all contours
+            cnts = self._findContours(canny)
+            cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
+
+            if self._debug:
+                cv2.imshow('Canny detection', cv2.resize(canny, None, fx=0.5, fy=0.5))
+
+            cnts = self._findContours(canny, True, show_contours=self._debug)
+
+            # if no contours are found, try again with less blurr
+            if cnts is not None:
+                iterations = -1
+            else:
+                iterations -= 1
+
+        # cv2.imshow('mov', cv2.resize(moving_img, None, fx=0.5, fy=0.5))
+        # cv2.waitKey(0)
+        if cnts is None:
+            ut.console_log("Error Moving: No contours detected")
+            return False
 
         # draw only the longest contour (bigger rectangle)
         rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
-        cnts = self._findContours(canny, True, show_contours=False)
-        if cnts is None:
-            ut.console_log("Error Moving: No contours detected", 'e')
-            return False
-
         cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
         if self._show_rectangles_canvas:
+            cv2.drawContours(static_img_copy, static_shape_cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
             cv2.drawContours(moving_img, cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
 
         ''' Corner Detection'''
@@ -100,12 +121,12 @@ class FeatureMatcher:
         corners = cv2.goodFeaturesToTrack(image=rectangle_canvas,
                                           maxCorners=4,
                                           qualityLevel=0.1,
-                                          minDistance=30,
-                                          blockSize=20,
+                                          minDistance=200,
+                                          blockSize=30,
                                           useHarrisDetector=False)
 
         if corners is None or len(corners) != 4:
-            ut.console_log("Error Moving: Wrong corners detected", 'e')
+            ut.console_log("Error Moving: Wrong corners detected")
             return False
         corners = np.int0(corners)
         corners = corners.reshape((len(corners), 2))
@@ -114,7 +135,7 @@ class FeatureMatcher:
         default_corner = None
         if self._previous_default_corner is None:
             # if there isn't a previous point calculate by searching the white circle
-            default_corner = self._findDefaultCorner(moving_img, corners)
+            default_corner = self._findDefaultCorner(moving_img, corners, show_search_lines=self._debug)
         else:
             # if there is a previous point calculate by distance
             min_distance = width
@@ -122,13 +143,14 @@ class FeatureMatcher:
                 x, y = corner
                 # cv2.putText(img, "{}  {}".format(x, y), (x - 100, y - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 3, cv2.LINE_AA)
                 # calculate for each corner the distance between default corner
-                distance = ut.euclidean_distance(x, y, self._previous_default_corner[0],
+                distance = ut.euclidean_distance(x, y,
+                                                 self._previous_default_corner[0],
                                                  self._previous_default_corner[1])
                 if distance < min_distance:
                     default_corner = (x, y)
                     min_distance = distance
         if default_corner is None:
-            ut.console_log("Error Moving: Default corner not found", 'e')
+            ut.console_log("Error Moving: Default corner not found")
             return False
         self._previous_default_corner = default_corner
 
@@ -143,67 +165,78 @@ class FeatureMatcher:
         # detect and track rectangle corners given the default corner
         second_corner, third_corner, fourth_corner = self._findCorners(corners, default_corner)
         if self._show_corners is True:
+            # moving shape corners
             cv2.circle(moving_img, default_corner, 1, cst.COLOR_BLUE, 20)
             cv2.circle(moving_img, second_corner, 1, cst.COLOR_GREEN, 20)
             cv2.circle(moving_img, third_corner, 1, cst.COLOR_YELLOW, 20)
             cv2.circle(moving_img, fourth_corner, 1, cst.COLOR_ORANGE, 20)
+            # static shape corners
+            cv2.circle(static_img_copy, static_shape_points[0], 1, cst.COLOR_BLUE, 20)
+            cv2.circle(static_img_copy, static_shape_points[1], 1, cst.COLOR_GREEN, 20)
+            cv2.circle(static_img_copy, static_shape_points[2], 1, cst.COLOR_YELLOW, 20)
+            cv2.circle(static_img_copy, static_shape_points[3], 1, cst.COLOR_ORANGE, 20)
+
+        moving_shape_points = (default_corner, second_corner, third_corner, fourth_corner)
+
+        ''' Camera Pose'''
+        # find camera pose
+        R, T = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
+        camera_position = -np.matrix(R).T * np.matrix(T)
+        camera_position = np.array(camera_position).flatten()
+        if self._show_light_direction:
+            iut.image_draw_circle(static_img_copy, camera_position[0], camera_position[1], cst.COLOR_RED)
 
         ''' Homography '''
-        # find homography between moving and world
-        world_img, world_shape_points = self.getWorldRectangleShape(static_img)
-        moving_shape_points = (default_corner, second_corner, third_corner, fourth_corner)
-        homography_moving_world, _ = ut.find_homography(moving_shape_points, world_shape_points)
-        if homography_moving_world is not None:
-            # self._getStaticPixelsIntensity(static_img, static_shape_points)
-
-            if self._show_homography:
-                img_homography = cv2.warpPerspective(moving_img, homography_moving_world,
-                                                     (world_img.shape[1], world_img.shape[0]))
+        if self._show_homography:
+            # find homography between moving and static
+            homography, _ = ut.find_homography(moving_shape_points, static_shape_points)
+            if homography is not None:
+                img_homography = cv2.warpPerspective(moving_img, homography,
+                                                     (static_img_copy.shape[1], static_img_copy.shape[0]))
                 cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
 
-            # find camera pose
-            camera_pose = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
-            if self._show_light_direction:
-                camera_position = -np.matrix(camera_pose[0]).T * np.matrix(camera_pose[1])
-                ut.image_draw_circle(static_img, camera_position[0], camera_position[1], cst.COLOR_RED)
+        ''' Extract ROI intensities'''
+        # get pixels intensity for the selected area
+        # intensities is a matrix of pixel[y][x] for gray channel values
+        intensities = ut.get_ROI(static_img, static_shape_points, grayscale=True, show_roi=self._debug)
+
+        data = (intensities, camera_position)
 
         if self._show_static_frame:
-            cv2.imshow('Static Camera', cv2.resize(static_img, None, fx=0.4, fy=0.4))
+            cv2.imshow('Static Camera', cv2.resize(static_img_copy, None, fx=0.4, fy=0.4))
         if self._show_moving_frame:
             cv2.imshow('Moving Camera', cv2.resize(moving_img, None, fx=0.5, fy=0.5))
         cv2.waitKey(wait_key)
 
         return data
 
-    def computeStaticShape(self, img):
+    @staticmethod
+    def computeStaticShape(img):
         """
-        Compute the static shape rectangle, return the 4 points
-        :param img: OpenCv image
+        Compute the static shape rectangle, return the contours and the 4 corners
         """
         height, width, _ = img.shape
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = 255 - gray
-        gray = ut.image_blur(gray, iterations=5)
+        gray = iut.image_blur(gray, iterations=5)
 
         ''' Image Refinement'''
         # find image edges
         canny = FeatureMatcher._findEdges(gray)
 
         # refine all contours
-        cnts = self._findContours(canny)
+        cnts = FeatureMatcher._findContours(canny)
         cv2.drawContours(canny, cnts, -1, (255, 255, 255), 1, cv2.LINE_AA)
 
         # draw only the longest contour (bigger rectangle)
         rectangle_canvas = np.zeros(gray.shape, np.uint8)  # create empty image from gray
-        cnts = self._findContours(canny, True, show_contours=False)
+        cnts = FeatureMatcher._findContours(canny, True, show_contours=False)
         if cnts is None:
-            ut.console_log("Error Static: No contours detected", 'e')
+            ut.console_log("Error Static: No contours detected")
             return False
 
         cv2.drawContours(rectangle_canvas, cnts, -1, (255, 255, 255), 3, cv2.LINE_AA)
-        if self._show_rectangles_canvas:
-            cv2.drawContours(img, cnts, -1, cst.COLOR_RED, 3, cv2.LINE_AA)
 
         ''' Corner Detection'''
         # find corners
@@ -215,7 +248,7 @@ class FeatureMatcher:
                                           useHarrisDetector=False)
 
         if corners is None or len(corners) != 4:
-            ut.console_log("Error Static: Wrong corners detected", 'e')
+            ut.console_log("Error Static: Wrong corners detected")
             return img, None
         corners = np.int0(corners)
         corners = corners.reshape((len(corners), 2))
@@ -245,16 +278,10 @@ class FeatureMatcher:
                 fourth_corner = (x, y)
 
         if second_corner is None or third_corner is None or fourth_corner is None:
-            ut.console_log("Error Static: Wrong corners detected", 'e')
+            ut.console_log("Error Static: Wrong corners detected")
             return img, None
 
-        if self._show_corners is True:
-            cv2.circle(img, default_corner, 1, cst.COLOR_BLUE, 20)
-            cv2.circle(img, second_corner, 1, cst.COLOR_GREEN, 20)
-            cv2.circle(img, third_corner, 1, cst.COLOR_YELLOW, 20)
-            cv2.circle(img, fourth_corner, 1, cst.COLOR_ORANGE, 20)
-
-        return img, (default_corner, second_corner, third_corner, fourth_corner)
+        return cnts, (default_corner, second_corner, third_corner, fourth_corner)
 
     @staticmethod
     def getWorldRectangleShape(img, show_shape=False):
@@ -317,6 +344,8 @@ class FeatureMatcher:
 
         # search for third-corner
         third_corner, distances_default = self._trackCorner(distances_third, distances_default)
+        if second_corner[0] == third_corner[0] and second_corner[1] == third_corner[1]:
+            third_corner, distances_default = self._trackCorner([], distances_default)
         self._previous_third_corner = third_corner
 
         fourth_corner = None
@@ -332,7 +361,7 @@ class FeatureMatcher:
         return second_corner, third_corner, fourth_corner
 
     @staticmethod
-    def _findDefaultCorner(img, corners):
+    def _findDefaultCorner(img, corners, show_search_lines=False):
         """
         Find the default corner of the rectangle
         The default corner is the nearest to the circle into the shape
@@ -343,11 +372,12 @@ class FeatureMatcher:
 
         # search default point
         show_img = None
-        # show_img = img.copy() # debug
+        if show_search_lines:
+            show_img = img.copy()
         default_corner = None
         min_distance = 100
         height, width, _ = img.shape
-        x_median, y_median = FeatureMatcher._getCornersCenter(corners, height, width)
+        x_median, y_median = ut.get_corners_center(corners, height, width)
         for corner in corners:
             x, y = corner.ravel()
             distance = FeatureMatcher._searchWhiteBorder(img,
@@ -357,42 +387,13 @@ class FeatureMatcher:
                                                          y_destination=y_median,
                                                          limit=min_distance,
                                                          show_img=show_img)
-
+            if show_search_lines:
+                cv2.imshow("findDefaultCorner", cv2.resize(show_img, None, fx=0.5, fy=0.5))
             if distance is not False and distance < min_distance:
                 default_corner = (x, y)
                 min_distance = distance
 
         return default_corner
-
-    @staticmethod
-    def _getCornersCenter(corners, height, width):
-        """
-        Get the center point between corners
-        :param corners: corners points of the shape
-        :param width: width of the OpenCv image
-        :param height: height of the OpenCv image
-        :rtype: object
-        """
-        # search x and y bounds
-        max_x = 0
-        min_x = width
-        max_y = 0
-        min_y = height
-        for corner in corners:
-            x, y = corner
-            if x > max_x:
-                max_x = x
-            if x < min_x:
-                min_x = x
-            if y > max_y:
-                max_y = y
-            if y < min_y:
-                min_y = y
-
-        x_median = round(max_x - (max_x - min_x) / 2)
-        y_median = round(max_y - (max_y - min_y) / 2)
-
-        return x_median, y_median
 
     @staticmethod
     def _searchWhiteBorder(img, x_start, y_start, x_destination, y_destination, limit=1000, show_img=None):
@@ -453,7 +454,7 @@ class FeatureMatcher:
         :param img:
         :return:
         """
-        sigma = 0.4
+        sigma = 0.5
         # compute the median of the single channel pixel intensities
         v = np.median(img)
         # apply automatic Canny edge detection using the computed median
@@ -478,26 +479,27 @@ class FeatureMatcher:
         cnts, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
 
-        max_perimeter = 0
+        max_peri = 0
         cnt = None
-        perimeters = []
         cnts_approx = []
         i = 0
         if len(cnts) > 0:
             for c in cnts:
                 peri = cv2.arcLength(c, closed=True)
-                if show_contours and peri > 1000:
-                    i += 1
-                    test_img = np.zeros(img.shape, np.uint8)  # create empty image from gray
-                    cv2.drawContours(test_img, [c], -1, (255, 255, 255), 3, cv2.LINE_AA)
-                    cv2.putText(test_img, "perimeter: {}".format(peri), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                                (255, 255, 255), 3, cv2.LINE_AA)
-                    cv2.imshow("test{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
-                if peri > max_perimeter:
-                    max_perimeter = peri
-                    cnt = [c]
+                approx = cv2.approxPolyDP(c, 0.04 * peri, True)
+                area = cv2.contourArea(approx)
                 cnts_approx.append(c)
-                perimeters.append(peri)
+                if area > 500 and peri > 500:     # discard outliers contours
+                    if show_contours:
+                        i += 1
+                        test_img = np.zeros(img.shape, np.uint8)  # create empty image from gray
+                        cv2.drawContours(test_img, [approx], -1, (255, 255, 255), 3, cv2.LINE_AA)
+                        cv2.putText(test_img, "perimeter: {}  area: {}".format(peri, area), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                    (255, 255, 255), 3, cv2.LINE_AA)
+                        cv2.imshow("findContours_{}".format(i), cv2.resize(test_img, None, fx=0.6, fy=0.6))
+                    if peri > max_peri:
+                        max_peri = peri
+                        cnt = [c]
 
         if max_only:
             if cnt is None:
@@ -506,30 +508,3 @@ class FeatureMatcher:
                 return np.array(cnt)
 
         return np.array(cnts_approx)
-
-    @staticmethod
-    def _getStaticPixelsIntensity(static_img, static_shape_points, area_diameter=300):
-        from matplotlib import pyplot as plt
-        h, w, _ = static_img.shape
-        corners = np.array(static_shape_points)
-        x_center, y_center = FeatureMatcher._getCornersCenter(corners, h, w)
-        x_min, x_max = x_center - area_diameter, x_center + area_diameter
-        y_min, y_max = y_center - area_diameter, y_center + area_diameter
-
-        if x_min < 0:
-            x_min = 1
-        if x_max > w:
-            x_max = w - 1
-        if y_min < 0:
-            y_min = 1
-        if y_max > h:
-            y_max = h - 1
-
-        roi_img = static_img[y_min:y_max, x_min:x_max]
-        for i, col in enumerate(['b', 'g', 'r']):
-            hist = cv2.calcHist([roi_img], [i], None, [256], [0, 256])
-            plt.plot(hist, color=col)
-            plt.xlim([0, 256])
-        plt.show()
-
-        return roi_img

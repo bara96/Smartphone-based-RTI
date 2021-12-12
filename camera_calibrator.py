@@ -3,6 +3,7 @@ import constants as cst
 import os
 import cv2
 import numpy as np
+from timeit import default_timer as timer
 
 
 def calibrate(video_path, save_path, frame_skip=60, show_images=True):
@@ -124,4 +125,6 @@ def compute():
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    start = timer()
     compute()
+    print("Computation duration: {} s".format(round(timer() - start, 2)))

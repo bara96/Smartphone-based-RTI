@@ -2,7 +2,8 @@ import os
 import cv2
 import constants as cst
 from matplotlib import pyplot as plt
-import utilities as ut
+from Utils import utilities as ut
+from Utils import image_utils as iut
 import numpy as np
 
 
@@ -142,8 +143,8 @@ class FeatureMatcherOld:
         train_img_bw = cv2.cvtColor(train_image, cv2.COLOR_BGR2GRAY)
         query_img_bw = cv2.cvtColor(homography_image, cv2.COLOR_BGR2GRAY)
 
-        train_img_bw = ut.image_blur(train_img_bw, iterations=5)
-        query_img_bw = ut.image_blur(query_img_bw, iterations=5)
+        train_img_bw = iut.image_blur(train_img_bw, iterations=5)
+        query_img_bw = iut.image_blur(query_img_bw, iterations=5)
 
         queryKeypoints, queryDescriptors = detector_alg.detectAndCompute(query_img_bw, None)
         trainKeypoints, trainDescriptors = detector_alg.detectAndCompute(train_img_bw, None)
@@ -277,7 +278,7 @@ class FeatureMatcherOld:
         #camera_position = -rotM.transpose() * tvecs
 
         train_img_new = image.copy()
-        train_img_new, x, y = ut.image_draw_circle(train_img_new, camera_position[0], camera_position[1],
+        train_img_new, x, y = iut.image_draw_circle(train_img_new, camera_position[0], camera_position[1],
                                                    (0, 0, 255))
         if show_position:
             cv2.imshow("Camera Position", cv2.resize(train_img_new, None, fx=0.3, fy=0.3))
@@ -358,14 +359,14 @@ class FeatureMatcherOld:
             Image enchantments Phase
             '''
             train_img_bw = cv2.cvtColor(train_img, cv2.COLOR_BGR2GRAY)
-            query_img = ut.enchant_brightness_and_contrast(query_img)
+            query_img = iut.enchant_brightness_and_contrast(query_img)
             query_img_bw = cv2.cvtColor(query_img, cv2.COLOR_BGR2GRAY)
 
             #train_img_bw = ut.enchant_morphological(train_img_bw, [cv2.MORPH_OPEN])
             #query_img_bw = ut.enchant_morphological(query_img_bw, [cv2.MORPH_OPEN])
 
-            train_img_bw = ut.image_blur(train_img_bw, iterations=10)
-            query_img_bw = ut.image_blur(query_img_bw, iterations=10)
+            train_img_bw = iut.image_blur(train_img_bw, iterations=10)
+            query_img_bw = iut.image_blur(query_img_bw, iterations=10)
 
             '''
             Feature Matching Phase
