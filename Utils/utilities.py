@@ -5,17 +5,27 @@ Main utilities methods
 import constants as cst
 import cv2
 import numpy as np
+import os
 
 
-def console_log(message, color='red'):
+def console_log(message, color='red', newline=False):
+    """
+    Print a colored console message
+    :param message:
+    :param color:
+    :param newline:
+    """
+    nl = ''
+    if newline:
+        nl = '\n'
     if color == 'red':
-        print("\n\033[91m{}\033[0m".format(message))
+        print("{}\033[91m{}\033[0m".format(nl, message))
     elif color == 'green':
-        print("\n\033[92m{}\033[0m".format(message))
+        print("{}\033[92m{}\033[0m".format(nl, message))
     elif color == 'yellow':
-        print("\n\033[93m{}\033[0m".format(message))
+        print("{}\033[93m{}\033[0m".format(nl, message))
     elif color == 'blue':
-        print("\n\033[94m{}\033[0m".format(message))
+        print("{}\033[94m{}\033[0m".format(nl, message))
 
 
 def get_camera_intrinsics(calibration_file_path):
@@ -35,26 +45,59 @@ def get_camera_intrinsics(calibration_file_path):
     return matrix, distortion
 
 
-def write_on_file(data, filename):
+def write_on_file(data, filename, compressed=True):
     """
     Write data on pickle file
     :param data: Object to save
     :param filename: filename of the pickle file to save
+    :param compressed: compress file
     """
+    import bz2
     import pickle
-    with open(filename, "wb") as f:
-        pickle.dump(data, f)
+    import _pickle as cPickle
+
+    print("Writing on file {}".format(filename))
+
+    if compressed:
+        filename = filename + '.pbz2'
+        with bz2.BZ2File(filename, "wb") as f:
+            cPickle.dump(data, f)
+    else:
+        filename = filename + '.pickle'
+        with open(filename, "wb") as f:
+            pickle.dump(data, f)
+
+    print("Saved file {}".format(filename))
 
 
-def read_from_file(filename):
+def read_from_file(filename, compressed=True):
     """
     Read data from pickle file
     :param filename: filename of the pickle file to read
+    :param compressed: read from compressed file
     :return:
     """
+    import bz2
     import pickle
-    with open(filename, 'rb') as f:
-        results = pickle.load(f)
+    import _pickle as cPickle
+
+    if compressed:
+        filename = filename + '.pbz2'
+    else:
+        filename = filename + '.pickle'
+
+    if not os.path.isfile(filename):
+        raise Exception('Storage file not found!')
+
+    print("Reading from file {}".format(filename))
+
+    if compressed:
+        with bz2.BZ2File(filename, 'rb') as f:
+            results = cPickle.load(f)
+    else:
+        with open(filename, "rb") as f:
+            results = pickle.load(f)
+
     return results
 
 
@@ -276,3 +319,25 @@ def get_ROI(static_img, static_shape_points, grayscale=False, show_roi=False):
         return np.array(roi_img_gray)
 
     return roi_img
+
+
+def get_light_roi_test(frame_default, static_shape_points):
+    roi_img = get_ROI(frame_default, static_shape_points)
+    roi_img = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+    h, w = roi_img.shape
+    h2, w2 = int(h / 2), int(w / 2)
+    light_pos_img = np.zeros((h, w), np.uint8)
+    cv2.line(light_pos_img, (0, h2), (w, h2), (255, 255, 255), 1)
+    cv2.line(light_pos_img, (w2, 0), (w2, h), (255, 255, 255), 1)
+    return light_pos_img
+
+
+def draw_light_test(camera_position, light_pos_img):
+    p = (200, 200, 0)
+    l = (camera_position - p) / np.linalg.norm(camera_position - p)
+    img = light_pos_img.copy()
+    x = int(2 * (1 + l[0]) * 100)
+    y = int(2 * (1 + l[1]) * 100)
+
+    cv2.circle(img, (x, y), 1, cst.COLOR_PURPLE, 5)
+    cv2.imshow('Light Position', img)
