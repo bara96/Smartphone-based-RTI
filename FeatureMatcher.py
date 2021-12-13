@@ -185,7 +185,7 @@ class FeatureMatcher:
 
         ''' Camera Pose'''
         # find camera pose
-        R, T = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
+        R, T = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape)
         camera_position = -np.matrix(R).T * np.matrix(T)
         camera_position = np.array(camera_position).flatten()
         if self._show_light_direction:
@@ -198,8 +198,8 @@ class FeatureMatcher:
             p = (h2, w2, 0)
             l = (camera_position - p) / np.linalg.norm(camera_position - p)
             img = light_pos_img.copy()
-            x, y = int(2 * (1 + l[0]) * 100), int(2 * (1 + l[1]) * 100)
-            cv2.circle(img, (x, y), 1, (255, 255, 255), 5)
+            x, y = ut.draw_light_roi_position(l[0], l[1], (h2, w2), to_light_vector=False)
+            cv2.circle(img, (x, y), 1, cst.COLOR_WHITE, 5)
             cv2.imshow('Light Position', img)
 
         ''' Homography '''

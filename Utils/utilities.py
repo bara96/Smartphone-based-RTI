@@ -138,7 +138,8 @@ def find_camera_pose(src_shape_points, dst_shape_points, image_size):
          range(0, len(dst_shape_points))])
 
     # perform a camera calibration to get R and T
-    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera([points_3d], [points_2d],
+    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera([points_3d],
+                                                                    [points_2d],
                                                                     image_size,
                                                                     None, None)
     R = cv2.Rodrigues(r_vecs[0])[0]
@@ -329,4 +330,32 @@ def create_light_roi(frame_default, static_shape_points):
     light_pos_img = np.zeros((h, w), np.uint8)
     cv2.line(light_pos_img, (0, h2), (w, h2), (255, 255, 255), 1)
     cv2.line(light_pos_img, (w2, 0), (w2, h), (255, 255, 255), 1)
+    light_pos_img = cv2.cvtColor(light_pos_img, cv2.COLOR_GRAY2BGR)
     return light_pos_img
+
+
+def draw_light_roi_position(given_x, given_y, shape, to_light_vector=False):
+    """
+    get x,y or lx,ly coordinates for light ROI
+    :param given_x:
+    :param given_y:
+    :param shape:
+    :param to_light_vector: if True get lx,ly from x,y otherwise get x,y from lx,ly
+    :return:
+    """
+    h, w = shape
+
+    if to_light_vector:
+        # get lx,ly from x,y
+        lx = round(2 * (given_x / w) - 1, 2)
+        ly = round(2 * (given_y / h) - 1, 2)
+        if lx >= 0.99:
+            lx = 0.98
+        if ly >= 0.99:
+            ly = 0.98
+        return lx, ly
+    else:
+        # get x,y from lx,ly
+        x = int(2 * (1 + given_x) * 100)
+        y = int(2 * (1 + given_y) * 100)
+        return x, y
