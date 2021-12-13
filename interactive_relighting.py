@@ -42,7 +42,7 @@ def draw_light(x, y, show_coordinates=False):
     img = light_pos_img.copy()
     cv2.circle(img, (x, y), 1, cst.COLOR_WHITE, 5)
     cv2.imshow('Light Position', img)
-    h, w = light_pos_img.shape
+    h, w, _ = light_pos_img.shape
     lx, ly = ut.draw_light_roi_position(x, y, (h, w), to_light_vector=True)
 
     if show_coordinates:
