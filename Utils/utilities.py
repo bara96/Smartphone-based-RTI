@@ -130,7 +130,7 @@ def find_camera_pose(src_shape_points, dst_shape_points, image_size):
     T is translation
     """
 
-    M, d = get_camera_intrinsics(cst.INTRINSICS_MOVING_PATH)
+    M, d = get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
     points_3d = np.float32(
         [(src_shape_points[point][0], src_shape_points[point][1], 1) for point in
          range(0, len(src_shape_points))])
