@@ -181,7 +181,8 @@ class FeatureMatcher:
         ''' Extract ROI intensities'''
         # get pixels intensity for the selected area
         # intensities is a matrix of pixel[y][x] for gray channel values
-        roi_intensities = ut.get_ROI(static_img, static_shape_points, grayscale=True, show_roi=self._debug)
+        roi_intensities = ut.get_ROI(static_img, static_shape_points, hsv=True, show_roi=self._debug)
+        roi_intensities = roi_intensities[:, :, 2]  # get only V value of HSV
 
         ''' Camera Pose'''
         # find camera pose
@@ -293,29 +294,6 @@ class FeatureMatcher:
             return img, None
 
         return cnts, (default_corner, second_corner, third_corner, fourth_corner)
-
-    @staticmethod
-    def getWorldRectangleShape(img, show_shape=False):
-        """
-        Get the world rectangle shape
-        :param img: OpenCv image
-        :param show_shape: if True, show the created shape
-        """
-        img_rectangle = np.zeros(img.shape, np.uint8)  # create empty image
-
-        top_left = (100, 100)
-        top_right = (570, 100)
-        bottom_left = (100, 570)
-        bottom_right = (570, 570)
-
-        # Draw a rectangle
-        cv2.rectangle(img_rectangle, top_left, bottom_right, (255, 255, 255), 2)
-
-        cv2.circle(img_rectangle, bottom_left, 1, cst.COLOR_BLUE, 10)
-        cv2.circle(img_rectangle, top_left, 1, cst.COLOR_GREEN, 10)
-        if show_shape:
-            cv2.imshow('Shape', cv2.resize(img_rectangle, None, fx=0.6, fy=0.6))
-        return img_rectangle, (bottom_left, top_left, bottom_right, top_right)
 
     def _findCorners(self, corners, default_corner):
         """

@@ -18,6 +18,7 @@ def relighting_event(event, x, y, flags, param):
     :param param:
     """
     global interpolation_results
+    global roi_img
     lx, ly = draw_light(x, y, show_coordinates=False)
 
     # apply relighting
@@ -25,7 +26,12 @@ def relighting_event(event, x, y, flags, param):
     int_lx = round((1 + lx) / 2 * 100)
     #print("Cursor: ", int_ly, int_lx)
 
-    img = np.array(interpolation_results[int_ly][int_lx], dtype=np.uint8)
+    #img = np.array(interpolation_results[int_ly][int_lx], dtype=np.uint8)
+
+    img = roi_img.copy()
+    # we change only HSV, taking V value from interpolation results
+    img[:, :, 2] = interpolation_results[int_ly][int_lx][:, :, 2]
+    img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
     cv2.imshow('Relighting', img)
 
 
@@ -74,6 +80,7 @@ def compute(video_name='coin1', storage_filepath=None):
     """
     global light_pos_img
     global interpolation_results
+    global roi_img
 
     results_filepath = "assets/interpolation_results_{}".format(video_name)
 
@@ -95,14 +102,15 @@ def compute(video_name='coin1', storage_filepath=None):
     fm = FeatureMatcher()
     frame_default = cv2.imread(default_frame_path)
     static_shape_cnts, static_shape_points = fm.computeStaticShape(frame_default)
-    roi_img = ut.get_ROI(frame_default, static_shape_points)
-    roi_img = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+    roi_img = ut.get_ROI(frame_default, static_shape_points, hsv=True)
 
     light_pos_img = ut.create_light_roi(frame_default, static_shape_points)
     h2, w2 = int(light_pos_img.shape[0]/2), int(light_pos_img.shape[1]/2)
 
     # Read input image, and create output image
-    cv2.imshow('Relighting', roi_img)
+    img = roi_img.copy()
+    img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
+    cv2.imshow('Relighting', img)
     draw_light(w2, h2)
 
     # set Mouse Callback method

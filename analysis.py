@@ -412,7 +412,7 @@ if __name__ == '__main__':
     storage_results_save = "assets/frames_results_coin{}".format(coin)
 
     start = timer()
-    compute(video_name='coin{}'.format(coin), from_storage=False, debug=False)
+    compute(video_name='coin{}'.format(coin), from_storage=True, debug=False)
     time = round(timer() - start, 2)
     minutes = round(time / 60)
     seconds = time - (minutes * 60)
