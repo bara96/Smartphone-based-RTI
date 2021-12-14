@@ -18,7 +18,7 @@ def relighting_event(event, x, y, flags, param):
     :param param:
     """
     global interpolation_results
-    lx, ly = draw_light(x, y, show_coordinates=True)
+    lx, ly = draw_light(x, y, show_coordinates=False)
 
     # apply relighting
     int_ly = round((1 + ly) / 2 * 100)
@@ -115,8 +115,8 @@ def compute(video_name='coin1', storage_filepath=None):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     coin = 1
-    storage_results_save = "assets/frames_results_coin{}".format(coin)
+    storage_results_save = "assets/interpolation_results_coin{}_backup".format(coin)
 
     start = timer()
-    compute(video_name='coin1')
+    compute(video_name='coin1', storage_filepath=storage_results_save)
     print("Computation duration: {} s".format(round(timer() - start, 2)))
