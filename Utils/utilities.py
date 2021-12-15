@@ -118,21 +118,33 @@ def find_homography(src_pts, dst_pts):
     return matrix, mask
 
 
-def find_camera_pose(src_shape_points, dst_shape_points, image_size, calibration_file_path):
+def find_camera_pose(src_shape_points, dst_shape_points, refer_image, calibration_file_path=None):
     """
     Find R and T from calibration
     :param src_shape_points: points from the world reference shape
     :param dst_shape_points: points from the secondary shape
-    :param image_size: size of the image
+    :param refer_image: size of the image
     :param calibration_file_path: path to the intrinsics calibration file
     :return:
     R is rotation
     T is translation
     """
 
-    M, d = get_camera_intrinsics(calibration_file_path)
+    refer_image = cv2.cvtColor(refer_image, cv2.COLOR_BGR2GRAY)
+    image_size = refer_image.shape[::-1]
+    # image_size = (refer_image.shape[0], refer_image.shape[1])
+
+    if calibration_file_path is None:
+        M, d = None, None
+        z_axis = 0
+        flags = None
+    else:
+        M, d = get_camera_intrinsics(calibration_file_path)
+        z_axis = 1
+        flags = cv2.CALIB_USE_INTRINSIC_GUESS
+
     points_3d = np.float32(
-        [(src_shape_points[point][0], src_shape_points[point][1], 1) for point in
+        [(src_shape_points[point][0], src_shape_points[point][1], z_axis) for point in
          range(0, len(src_shape_points))])
     points_2d = np.float32(
         [(dst_shape_points[point][0], dst_shape_points[point][1]) for point in
@@ -144,7 +156,7 @@ def find_camera_pose(src_shape_points, dst_shape_points, image_size, calibration
                                                                     image_size,
                                                                     cameraMatrix=M,
                                                                     distCoeffs=d,
-                                                                    flags=cv2.CALIB_USE_INTRINSIC_GUESS)
+                                                                    flags=flags)
     R = cv2.Rodrigues(r_vecs[0])[0]
     T = t_vecs[0]
 

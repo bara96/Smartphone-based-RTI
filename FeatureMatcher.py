@@ -188,7 +188,7 @@ class FeatureMatcher:
         # find camera pose
         R, T = ut.find_camera_pose(src_shape_points=static_shape_points,
                                    dst_shape_points=moving_shape_points,
-                                   image_size=(static_img.shape[0], static_img.shape[1]),
+                                   refer_image=static_img,
                                    calibration_file_path=cst.INTRINSICS_STATIC_PATH)
         camera_position = -np.matrix(R).T * np.matrix(T)
         camera_position = np.array(camera_position).flatten()
