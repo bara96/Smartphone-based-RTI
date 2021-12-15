@@ -195,7 +195,7 @@ def compute_intensities(data, first_only=False):
     intensities: array of intensities for each pixel of the ROI, for the current frame
     camera_position: tuple (x, y, z), for the current frame
     :param first_only: compute and show only first pixel evaluation
-    :rtype: object
+    :return: (pixels_lx, pixels_ly, pixels_intensity), each array contain the values of each pixel for each (lx, ly)
     """
     if data is None or len(data) <= 0:
         raise Exception("Error computing intensities: results are empty")
@@ -207,6 +207,8 @@ def compute_intensities(data, first_only=False):
         ut.console_log("Intensities of first pixel only", "yellow")
         range_val = 1
 
+    # define 3 vectors to store pixels light vectors and intensity values
+    # for each frame we'll compute and save each pixel light vector and intensity
     pixels_lx = np.empty((range_val, range_val, len(data)), dtype=np.float32)
     pixels_ly = np.empty((range_val, range_val, len(data)), dtype=np.float32)
     pixels_intensity = np.empty((range_val, range_val, len(data)), dtype=np.int32)
@@ -217,6 +219,7 @@ def compute_intensities(data, first_only=False):
         camera_position = frame_data[1]
         for y in range(range_val):
             for x in range(range_val):
+                # compute light vector of pixel with coordinates p
                 p = (x, y, 0)
                 l = (camera_position - p) / np.linalg.norm(camera_position - p)
                 pixels_lx[y][x][i] = l[0]
@@ -224,14 +227,10 @@ def compute_intensities(data, first_only=False):
                 pixels_intensity[y][x][i] = intensities[y][x]
 
     if first_only:
-        # plot only first pixel values
+        # plot only first pixel values, for debug
         lx = pixels_lx[0][0]
         ly = pixels_ly[0][0]
         val = pixels_intensity[0][0]
-
-        # print("lx", lx)
-        # print("ly", ly)
-        # print("val", val)
 
         plt.scatter(lx, ly, c=val)
         plt.xlabel('lx')
@@ -242,15 +241,45 @@ def compute_intensities(data, first_only=False):
     return pixels_data
 
 
+def _interpolate_RBF(x_coarse, y_coarse, x_fine, y_fine, intensity_values):
+    """
+    interpolate coarse values on fine values domain using Linear Radial Basis Function
+    :param x_coarse:
+    :param y_coarse:
+    :param x_fine:
+    :param y_fine:
+    :param intensity_values:
+    :return:
+    """
+    rbfi = Rbf(x_coarse, y_coarse, intensity_values, function='linear')
+    return rbfi(x_fine, y_fine)
+
+
+def _interpolate_PTM(x_coarse, y_coarse, x_fine, y_fine, intensity_values):
+    """
+    interpolate coarse values on fine values domain using Polynomial Texture Maps
+    :param x_coarse:
+    :param y_coarse:
+    :param x_fine:
+    :param y_fine:
+    :param intensity_values:
+    :return:
+    """
+    rbfi = Rbf(x_coarse, y_coarse, intensity_values, function='linear')
+    return rbfi(x_fine, y_fine)
+
+
 # @jit(forceobj=True)
-def interpolate_intensities(data, first_only=False):
+def interpolate_intensities(data, interpolate_PTM=False, first_only=False):
     """
     Interpolate pixel intensities
     :param data: array of tuples (pixels_lx, pixels_ly, pixels_intensity), for each pixel
     pixels_lx: list of lx coordinates for each value, for the current pixel
     pixels_ly: list of ly coordinates for each value, for the current pixel
     pixels_intensity: list of intensities, for current pixel
+    :param interpolate_PTM: if True use PTM as interpolation function, otherwise use RFB
     :param first_only: compute and show only first pixel evaluation
+    :return: an array of interpolated values for each pixel and light vector: interpolated_intensities[y][x][ly][lx] => intensity
     """
     if data is None or len(data) != 3:
         raise Exception("Error computing interpolation: results are empty or invalid")
@@ -264,9 +293,7 @@ def interpolate_intensities(data, first_only=False):
     pixels_lx = data[0]
     pixels_ly = data[1]
     pixels_intensity = data[2]
-    # compute the normalized area domain
-    # roi_area_domain = np.linspace(-1.0, 1.0, 200)
-    # xi, yi = np.meshgrid(roi_area_domain, roi_area_domain)
+    # define interpolation domain
     yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
     yi = np.around(yi, decimals=2)
     xi = np.around(xi, decimals=2)
@@ -278,18 +305,17 @@ def interpolate_intensities(data, first_only=False):
             ly = pixels_ly[y][x]
             val = pixels_intensity[y][x]
 
-            rbfi = Rbf(lx, ly, val, function='linear')  # radial basis function interpolator instance
-
-            # interpolated values
-            di = rbfi(xi, yi)
-            interpolated_intensities[y][x] = di
-
+            if interpolate_PTM:
+                interpolated_intensities[y][x] = _interpolate_PTM(x_coarse=lx, y_coarse=ly,
+                                                                  x_fine=xi, y_fine=yi,
+                                                                  intensity_values=val)
+            else:
+                interpolated_intensities[y][x] = _interpolate_RBF(x_coarse=lx, y_coarse=ly,
+                                                                  x_fine=xi, y_fine=yi,
+                                                                  intensity_values=val)
     if first_only:
-        # plot only first pixel values
+        # plot only first pixel values, for debug
         val = interpolated_intensities[0][0]
-
-        # print("interpolated_val", val)
-
         plt.scatter(xi, yi, c=val)
         plt.xlabel('lx')
         plt.ylabel('ly')
@@ -304,7 +330,7 @@ def prepare_images_data(data, first_only=False):
     :param data: list of interpolated values for each pixel (y,x) and each light direction (ly,lx)
     interpolation_intensities[y][x][ly][lx] = intensity
     :param first_only: compute only first pixel evaluation
-    :return:
+    :return: an array of images foreach light position (normalized), interpolated_images[ly][lx][y][x] => intensity
     """
 
     if data is None or len(data) <= 0:
@@ -312,6 +338,7 @@ def prepare_images_data(data, first_only=False):
 
     print("Preparing images values:")
 
+    # define interpolation domain
     yi, xi = np.mgrid[-1:1:cst.INTERPOLATION_PARAM, -1:1:cst.INTERPOLATION_PARAM]
     xi = np.around(xi, decimals=2)
     yi = xi[0]
@@ -325,11 +352,12 @@ def prepare_images_data(data, first_only=False):
     interpolated_images = [[[] for y in range(len(yi))] for x in range(len(xi))]
     for ly in tqdm(range(len(yi))):
         for lx in range(len(xi)):
-            # get image for current light position ly lx
+            # get image for current light position (lx, ly)
             img = np.empty((range_val, range_val), dtype=np.int32)
             for y in range(range_val):
                 for x in range(range_val):
                     img[y][x] = data[y][x][ly][lx]
+            # save interpolated build image on (lx, ly)
             interpolated_images[ly][lx] = img
 
     return interpolated_images
@@ -385,12 +413,10 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None, notif
         ut.console_log("Notice: computing in debug mode (first pixel only)", "yellow")
 
     ut.console_log("Step 2: Computing pixels intensities", 'blue', newline=True)
-    # compute light vectors intensities
     data = compute_intensities(results_frames, first_only=debug)
 
     ut.console_log("Step 3: Computing interpolation", 'blue', newline=True)
-    # interpolate pixel intensities
-    results_interpolation = interpolate_intensities(data, first_only=debug)
+    results_interpolation = interpolate_intensities(data, interpolate_PTM=True, first_only=debug)
 
     ut.console_log("Step 4: Preparing images data", 'blue', newline=True)
     results_images = prepare_images_data(results_interpolation, first_only=debug)
