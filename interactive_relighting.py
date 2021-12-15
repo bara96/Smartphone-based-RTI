@@ -30,7 +30,11 @@ def relighting_event(event, x, y, flags, param):
 
     img = roi_img.copy()
     # we change only HSV, taking V value from interpolation results
-    img[:, :, 2] = interpolation_results[int_ly][int_lx]
+    values = interpolation_results[int_ly][int_lx]
+    # set hsv bounds on values
+    values[values > 255] = 255
+    values[values <= 0] = 0
+    img[:, :, 2] = values
     img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
     cv2.imshow('Relighting', img)
 

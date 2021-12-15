@@ -409,10 +409,10 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None, notif
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     coin = 1
-    storage_results_save = "assets/frames_results_coin{}".format(coin)
+    storage_results_save = "assets/frames_results_coin{}_mov".format(coin)
 
     start = timer()
-    compute(video_name='coin{}'.format(coin), from_storage=False, debug=False)
+    compute(video_name='coin{}'.format(coin), from_storage=True, debug=True, storage_filepath=storage_results_save)
     time = round(timer() - start, 2)
     minutes = int(time / 60)
     seconds = time - (minutes * 60)
