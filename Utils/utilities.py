@@ -118,29 +118,45 @@ def find_homography(src_pts, dst_pts):
     return matrix, mask
 
 
-def find_camera_pose(src_shape_points, dst_shape_points, image_size):
+def find_camera_pose(src_shape_points, dst_shape_points, refer_image, calibration_file_path=None):
     """
     Find R and T from calibration
     :param src_shape_points: points from the world reference shape
     :param dst_shape_points: points from the secondary shape
-    :param image_size: size of te image
-    :return:
+    :param refer_image: size of the image
+    :param calibration_file_path: path to the intrinsics calibration file
     :return:
     R is rotation
     T is translation
     """
 
+    refer_image = cv2.cvtColor(refer_image, cv2.COLOR_BGR2GRAY)
+    image_size = refer_image.shape[::-1]
+    # image_size = (refer_image.shape[0], refer_image.shape[1])
+
+    if calibration_file_path is None:
+        M, d = None, None
+        z_axis = 0
+        flags = None
+    else:
+        M, d = get_camera_intrinsics(calibration_file_path)
+        z_axis = 1
+        flags = cv2.CALIB_USE_INTRINSIC_GUESS
+
     points_3d = np.float32(
-        [(src_shape_points[point][0], src_shape_points[point][1], 0) for point in
+        [(src_shape_points[point][0], src_shape_points[point][1], z_axis) for point in
          range(0, len(src_shape_points))])
     points_2d = np.float32(
         [(dst_shape_points[point][0], dst_shape_points[point][1]) for point in
          range(0, len(dst_shape_points))])
 
     # perform a camera calibration to get R and T
-    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera([points_3d], [points_2d],
+    (ret, matrix, distortion, r_vecs, t_vecs) = cv2.calibrateCamera([points_3d],
+                                                                    [points_2d],
                                                                     image_size,
-                                                                    None, None)
+                                                                    cameraMatrix=M,
+                                                                    distCoeffs=d,
+                                                                    flags=flags)
     R = cv2.Rodrigues(r_vecs[0])[0]
     T = t_vecs[0]
 
@@ -283,12 +299,13 @@ def get_corners_center(corners, height, width):
     return x_median, y_median
 
 
-def get_ROI(static_img, static_shape_points, grayscale=False, show_roi=False):
+def get_ROI(static_img, static_shape_points, grayscale=False, hsv=False, show_roi=False):
     """
     Extract Region Of Interest from an image with gray channel
     :param static_img: OpenCv image
     :param static_shape_points: points of the image
     :param grayscale: if True, return a greyscale image
+    :param hsv: if True, return a hsv image
     :param show_roi: if True, show the extracted image
     :return:
     """
@@ -315,13 +332,17 @@ def get_ROI(static_img, static_shape_points, grayscale=False, show_roi=False):
         cv2.imshow("roi_img", roi_img)
 
     if grayscale is True:
-        roi_img_gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
-        return np.array(roi_img_gray)
+        roi_img = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+        return np.array(roi_img)
+
+    if hsv is True:
+        roi_img = cv2.cvtColor(roi_img, cv2.COLOR_BGR2HSV)
+        return np.array(roi_img)
 
     return roi_img
 
 
-def get_light_roi_test(frame_default, static_shape_points):
+def create_light_roi(frame_default, static_shape_points):
     roi_img = get_ROI(frame_default, static_shape_points)
     roi_img = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
     h, w = roi_img.shape
@@ -329,15 +350,32 @@ def get_light_roi_test(frame_default, static_shape_points):
     light_pos_img = np.zeros((h, w), np.uint8)
     cv2.line(light_pos_img, (0, h2), (w, h2), (255, 255, 255), 1)
     cv2.line(light_pos_img, (w2, 0), (w2, h), (255, 255, 255), 1)
+    light_pos_img = cv2.cvtColor(light_pos_img, cv2.COLOR_GRAY2BGR)
     return light_pos_img
 
 
-def draw_light_test(camera_position, light_pos_img):
-    p = (200, 200, 0)
-    l = (camera_position - p) / np.linalg.norm(camera_position - p)
-    img = light_pos_img.copy()
-    x = int(2 * (1 + l[0]) * 100)
-    y = int(2 * (1 + l[1]) * 100)
+def draw_light_roi_position(given_x, given_y, shape, to_light_vector=False):
+    """
+    get x,y or lx,ly coordinates for light ROI
+    :param given_x:
+    :param given_y:
+    :param shape:
+    :param to_light_vector: if True get lx,ly from x,y otherwise get x,y from lx,ly
+    :return:
+    """
+    h, w = shape
 
-    cv2.circle(img, (x, y), 1, cst.COLOR_PURPLE, 5)
-    cv2.imshow('Light Position', img)
+    if to_light_vector:
+        # get lx,ly from x,y
+        lx = round(2 * (given_x / w) - 1, 2)
+        ly = round(2 * (given_y / h) - 1, 2)
+        if lx >= 0.99:
+            lx = 0.98
+        if ly >= 0.99:
+            ly = 0.98
+        return lx, ly
+    else:
+        # get x,y from lx,ly
+        x = int(2 * (1 + given_x) * 100)
+        y = int(2 * (1 + given_y) * 100)
+        return x, y

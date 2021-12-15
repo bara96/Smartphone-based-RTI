@@ -142,8 +142,6 @@ def extract_video_frames(static_video_path, moving_video_path,
     frame_default = cv2.imread(default_frame_path)
     static_shape_cnts, static_shape_points = fm.computeStaticShape(frame_default)
 
-    #light_pos_img = ut.get_light_roi_test(frame_default, static_shape_points)
-
     dataset = []
     failures_consecutive_count = 0
     for i in tqdm(range(start_from_frame, max_frames_to_read - 1)):
@@ -160,8 +158,6 @@ def extract_video_frames(static_video_path, moving_video_path,
                                     wait_key=False)
         if result is not False:
             dataset.append(result)
-            camera_position = result[1]
-            #ut.draw_light_test(camera_position, light_pos_img)
             failures_consecutive_count = 0
         else:
             failures_consecutive_count += 1
@@ -192,14 +188,13 @@ def extract_video_frames(static_video_path, moving_video_path,
 
 
 # @jit(forceobj=True)
-def compute_intensities(data, show_pixel_values=False, first_only=False):
+def compute_intensities(data, first_only=False):
     """
     Compute light vectors intensities foreach frame pixel
     :param data: array of tuples (intensities, camera_position), for each frame
     intensities: array of intensities for each pixel of the ROI, for the current frame
     camera_position: tuple (x, y, z), for the current frame
-    :param show_pixel_values: if True, show first pixel light vectors values
-    :param first_only: compute only first pixel evaluation
+    :param first_only: compute and show only first pixel evaluation
     :rtype: object
     """
     if data is None or len(data) <= 0:
@@ -228,7 +223,7 @@ def compute_intensities(data, show_pixel_values=False, first_only=False):
                 pixels_ly[y][x][i] = l[1]
                 pixels_intensity[y][x][i] = intensities[y][x]
 
-    if show_pixel_values:
+    if first_only:
         # plot only first pixel values
         lx = pixels_lx[0][0]
         ly = pixels_ly[0][0]
@@ -248,18 +243,17 @@ def compute_intensities(data, show_pixel_values=False, first_only=False):
 
 
 # @jit(forceobj=True)
-def interpolate_intensities(data, show_pixel_values=False, first_only=False):
+def interpolate_intensities(data, first_only=False):
     """
     Interpolate pixel intensities
     :param data: array of tuples (pixels_lx, pixels_ly, pixels_intensity), for each pixel
     pixels_lx: list of lx coordinates for each value, for the current pixel
     pixels_ly: list of ly coordinates for each value, for the current pixel
     pixels_intensity: list of intensities, for current pixel
-    :param show_pixel_values: if True, show first pixel interpolation values
-    :param first_only: compute only first pixel evaluation
+    :param first_only: compute and show only first pixel evaluation
     """
-    if data is None or len(data) <= 0:
-        raise Exception("Error computing interpolation: results are empty")
+    if data is None or len(data) != 3:
+        raise Exception("Error computing interpolation: results are empty or invalid")
 
     print("Computing interpolation values:")
 
@@ -290,7 +284,7 @@ def interpolate_intensities(data, show_pixel_values=False, first_only=False):
             di = rbfi(xi, yi)
             interpolated_intensities[y][x] = di
 
-    if show_pixel_values:
+    if first_only:
         # plot only first pixel values
         val = interpolated_intensities[0][0]
 
@@ -354,9 +348,6 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None, notif
     results_frames_filepath = "assets/frames_results_{}".format(video_name)
     results_interpolation_filepath = "assets/interpolation_results_{}".format(video_name)
 
-    if debug:
-        ut.console_log("Notice: computing in debug mode (first pixel only)", "yellow")
-
     ut.console_log("Step 1: Computing frames values", 'blue', newline=True)
     if from_storage is True:
         # read a pre-saved results file
@@ -390,13 +381,16 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None, notif
         # write frames results on file
         ut.write_on_file(results_frames, results_frames_filepath)
 
+    if debug:
+        ut.console_log("Notice: computing in debug mode (first pixel only)", "yellow")
+
     ut.console_log("Step 2: Computing pixels intensities", 'blue', newline=True)
     # compute light vectors intensities
-    data = compute_intensities(results_frames, show_pixel_values=False, first_only=debug)
+    data = compute_intensities(results_frames, first_only=debug)
 
     ut.console_log("Step 3: Computing interpolation", 'blue', newline=True)
     # interpolate pixel intensities
-    results_interpolation = interpolate_intensities(data, show_pixel_values=False, first_only=debug)
+    results_interpolation = interpolate_intensities(data, first_only=debug)
 
     ut.console_log("Step 4: Preparing images data", 'blue', newline=True)
     results_images = prepare_images_data(results_interpolation, first_only=debug)
@@ -418,8 +412,8 @@ if __name__ == '__main__':
     storage_results_save = "assets/frames_results_coin{}".format(coin)
 
     start = timer()
-    compute(video_name='coin{}'.format(coin), from_storage=True, debug=False)
+    compute(video_name='coin{}'.format(coin), from_storage=False, debug=False)
     time = round(timer() - start, 2)
-    minutes = round(time / 60)
+    minutes = int(time / 60)
     seconds = time - (minutes * 60)
     print("Computation duration: {} m {} s".format(minutes, seconds))
