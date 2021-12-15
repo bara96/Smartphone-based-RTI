@@ -188,8 +188,8 @@ class FeatureMatcher:
         # find camera pose
         R, T = ut.find_camera_pose(src_shape_points=static_shape_points,
                                    dst_shape_points=moving_shape_points,
-                                   refer_image=static_img,
-                                   calibration_file_path=cst.INTRINSICS_STATIC_PATH)
+                                   refer_image=moving_img,
+                                   calibration_file_path=cst.INTRINSICS_MOVING_PATH)
         camera_position = -np.matrix(R).T * np.matrix(T)
         camera_position = np.array(camera_position).flatten()
         if self._show_light_direction:
