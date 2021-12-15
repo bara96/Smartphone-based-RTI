@@ -118,19 +118,19 @@ def find_homography(src_pts, dst_pts):
     return matrix, mask
 
 
-def find_camera_pose(src_shape_points, dst_shape_points, image_size):
+def find_camera_pose(src_shape_points, dst_shape_points, image_size, calibration_file_path):
     """
     Find R and T from calibration
     :param src_shape_points: points from the world reference shape
     :param dst_shape_points: points from the secondary shape
     :param image_size: size of the image
-    :return:
+    :param calibration_file_path: path to the intrinsics calibration file
     :return:
     R is rotation
     T is translation
     """
 
-    M, d = get_camera_intrinsics(cst.INTRINSICS_STATIC_PATH)
+    M, d = get_camera_intrinsics(calibration_file_path)
     points_3d = np.float32(
         [(src_shape_points[point][0], src_shape_points[point][1], 1) for point in
          range(0, len(src_shape_points))])

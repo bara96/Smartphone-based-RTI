@@ -30,7 +30,7 @@ def relighting_event(event, x, y, flags, param):
 
     img = roi_img.copy()
     # we change only HSV, taking V value from interpolation results
-    img[:, :, 2] = interpolation_results[int_ly][int_lx][:, :, 2]
+    img[:, :, 2] = interpolation_results[int_ly][int_lx]
     img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
     cv2.imshow('Relighting', img)
 
@@ -123,7 +123,7 @@ def compute(video_name='coin1', storage_filepath=None):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     coin = 1
-    storage_results_save = "assets/interpolation_results_coin{}_backup".format(coin)
+    storage_results_save = "assets/interpolation_results_coin{}".format(coin)
 
     start = timer()
     compute(video_name='coin1', storage_filepath=storage_results_save)
