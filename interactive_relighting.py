@@ -18,14 +18,20 @@ def relighting_event(event, x, y, flags, param):
     :param param:
     """
     global interpolation_results
-    lx, ly = draw_light(x, y, show_coordinates=True)
+    global roi_img
+    lx, ly = draw_light(x, y, show_coordinates=False)
 
     # apply relighting
     int_ly = round((1 + ly) / 2 * 100)
     int_lx = round((1 + lx) / 2 * 100)
     #print("Cursor: ", int_ly, int_lx)
 
-    img = np.array(interpolation_results[int_ly][int_lx], dtype=np.uint8)
+    #img = np.array(interpolation_results[int_ly][int_lx], dtype=np.uint8)
+
+    img = roi_img.copy()
+    # we change only HSV, taking V value from interpolation results
+    img[:, :, 2] = interpolation_results[int_ly][int_lx]
+    img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
     cv2.imshow('Relighting', img)
 
 
@@ -40,13 +46,10 @@ def draw_light(x, y, show_coordinates=False):
     global light_pos_img
 
     img = light_pos_img.copy()
-    cv2.circle(img, (x, y), 1, cst.COLOR_PURPLE, 5)
+    cv2.circle(img, (x, y), 1, cst.COLOR_WHITE, 5)
     cv2.imshow('Light Position', img)
-    h, w = light_pos_img.shape
-    lx = 2 * (x / w) - 1
-    ly = 2 * (y / h) - 1
-    lx = round(lx, 2)
-    ly = round(ly, 2)
+    h, w, _ = light_pos_img.shape
+    lx, ly = ut.draw_light_roi_position(x, y, (h, w), to_light_vector=True)
 
     if show_coordinates:
         print(lx, ly)
@@ -77,6 +80,7 @@ def compute(video_name='coin1', storage_filepath=None):
     """
     global light_pos_img
     global interpolation_results
+    global roi_img
 
     results_filepath = "assets/interpolation_results_{}".format(video_name)
 
@@ -98,17 +102,15 @@ def compute(video_name='coin1', storage_filepath=None):
     fm = FeatureMatcher()
     frame_default = cv2.imread(default_frame_path)
     static_shape_cnts, static_shape_points = fm.computeStaticShape(frame_default)
-    roi_img = ut.get_ROI(frame_default, static_shape_points)
-    roi_img = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+    roi_img = ut.get_ROI(frame_default, static_shape_points, hsv=True)
 
-    h, w = roi_img.shape
-    h2, w2 = int(h / 2), int(w / 2)
-    light_pos_img = np.zeros((h, w), np.uint8)
-    cv2.line(light_pos_img, (0, h2), (w, h2), (255, 255, 255), 1)
-    cv2.line(light_pos_img, (w2, 0), (w2, h), (255, 255, 255), 1)
+    light_pos_img = ut.create_light_roi(frame_default, static_shape_points)
+    h2, w2 = int(light_pos_img.shape[0]/2), int(light_pos_img.shape[1]/2)
 
     # Read input image, and create output image
-    cv2.imshow('Relighting', roi_img)
+    img = roi_img.copy()
+    img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
+    cv2.imshow('Relighting', img)
     draw_light(w2, h2)
 
     # set Mouse Callback method
@@ -121,8 +123,8 @@ def compute(video_name='coin1', storage_filepath=None):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     coin = 1
-    storage_results_save = "assets/frames_results_coin{}".format(coin)
+    storage_results_save = "assets/interpolation_results_coin{}_mov".format(coin)
 
     start = timer()
-    compute(video_name='coin1')
+    compute(video_name='coin1', storage_filepath=storage_results_save)
     print("Computation duration: {} s".format(round(timer() - start, 2)))

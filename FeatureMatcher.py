@@ -178,13 +178,33 @@ class FeatureMatcher:
 
         moving_shape_points = (default_corner, second_corner, third_corner, fourth_corner)
 
+        ''' Extract ROI intensities'''
+        # get pixels intensity for the selected area
+        # intensities is a matrix of pixel[y][x] for gray channel values
+        roi_intensities = ut.get_ROI(static_img, static_shape_points, hsv=True, show_roi=self._debug)
+        roi_intensities = roi_intensities[:, :, 2]  # get only V value of HSV
+
         ''' Camera Pose'''
         # find camera pose
-        R, T = ut.find_camera_pose(static_shape_points, moving_shape_points, gray.shape[::-1])
+        R, T = ut.find_camera_pose(src_shape_points=static_shape_points,
+                                   dst_shape_points=moving_shape_points,
+                                   refer_image=moving_img,
+                                   calibration_file_path=cst.INTRINSICS_MOVING_PATH)
         camera_position = -np.matrix(R).T * np.matrix(T)
         camera_position = np.array(camera_position).flatten()
         if self._show_light_direction:
+            # draw light area on static frame
             iut.image_draw_circle(static_img_copy, camera_position[0], camera_position[1], cst.COLOR_RED)
+            # create light ROI
+            light_pos_img = ut.create_light_roi(static_img, static_shape_points)
+            # draw light position, taking p as refer pixel
+            h2, w2 = int(static_img.shape[0] / 2), int(static_img.shape[1] / 2)
+            p = (h2, w2, 0)
+            l = (camera_position - p) / np.linalg.norm(camera_position - p)
+            img = light_pos_img.copy()
+            x, y = ut.draw_light_roi_position(l[0], l[1], (h2, w2), to_light_vector=False)
+            cv2.circle(img, (x, y), 1, cst.COLOR_WHITE, 5)
+            cv2.imshow('Light Position', img)
 
         ''' Homography '''
         if self._show_homography:
@@ -195,12 +215,7 @@ class FeatureMatcher:
                                                      (static_img_copy.shape[1], static_img_copy.shape[0]))
                 cv2.imshow("Homography", cv2.resize(img_homography, None, fx=0.4, fy=0.4))
 
-        ''' Extract ROI intensities'''
-        # get pixels intensity for the selected area
-        # intensities is a matrix of pixel[y][x] for gray channel values
-        intensities = ut.get_ROI(static_img, static_shape_points, grayscale=True, show_roi=self._debug)
-
-        data = (intensities, camera_position)
+        data = (roi_intensities, camera_position)
 
         if self._show_static_frame:
             cv2.imshow('Static Camera', cv2.resize(static_img_copy, None, fx=0.4, fy=0.4))
@@ -282,29 +297,6 @@ class FeatureMatcher:
             return img, None
 
         return cnts, (default_corner, second_corner, third_corner, fourth_corner)
-
-    @staticmethod
-    def getWorldRectangleShape(img, show_shape=False):
-        """
-        Get the world rectangle shape
-        :param img: OpenCv image
-        :param show_shape: if True, show the created shape
-        """
-        img_rectangle = np.zeros(img.shape, np.uint8)  # create empty image
-
-        top_left = (100, 100)
-        top_right = (570, 100)
-        bottom_left = (100, 570)
-        bottom_right = (570, 570)
-
-        # Draw a rectangle
-        cv2.rectangle(img_rectangle, top_left, bottom_right, (255, 255, 255), 2)
-
-        cv2.circle(img_rectangle, bottom_left, 1, cst.COLOR_BLUE, 10)
-        cv2.circle(img_rectangle, top_left, 1, cst.COLOR_GREEN, 10)
-        if show_shape:
-            cv2.imshow('Shape', cv2.resize(img_rectangle, None, fx=0.6, fy=0.6))
-        return img_rectangle, (bottom_left, top_left, bottom_right, top_right)
 
     def _findCorners(self, corners, default_corner):
         """
