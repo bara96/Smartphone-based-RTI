@@ -1,11 +1,6 @@
 .idea/
 samples/__pycache__/
 __pycache__/
-assets/G3DCV2021_data
-assets/test/
-assets/frames/
-assets/match_results/
-assets/transformation_results/
-assets/interpolation_results_*
-
 .env
+assets/G3DCV2021_data/
+assets/interpolation_results_*
