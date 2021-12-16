@@ -55,9 +55,9 @@ class FeatureMatcher:
 
     def extractFeatures(self, moving_img, static_img, static_shape_points, static_shape_cnts, wait_key=False):
         """
-        Feature matching and homography check of given image
+        Compute the corner detection, intensity extraction and get the camera pose of given frames (static and moving)
         :param moving_img: OpenCv image
-        :param static_img: OpenCv image: default rectangle
+        :param static_img: OpenCv image
         :param static_shape_points: points of the static shape
         :param static_shape_cnts: contours of the static shape
         :param wait_key: specify if wait to user input or not when showing frames
@@ -95,6 +95,7 @@ class FeatureMatcher:
             if self._debug:
                 cv2.imshow('Canny detection', cv2.resize(canny, None, fx=0.5, fy=0.5))
 
+            # finally, get the largest rectangle contour
             cnts = self._findContours(canny, True, show_contours=self._debug)
 
             # if no contours are found, try again with less blurr
@@ -103,8 +104,6 @@ class FeatureMatcher:
             else:
                 iterations -= 1
 
-        # cv2.imshow('mov', cv2.resize(moving_img, None, fx=0.5, fy=0.5))
-        # cv2.waitKey(0)
         if cnts is None:
             ut.console_log("Error Moving: No contours detected")
             return False
@@ -141,7 +140,6 @@ class FeatureMatcher:
             min_distance = width
             for corner in corners:
                 x, y = corner
-                # cv2.putText(img, "{}  {}".format(x, y), (x - 100, y - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 3, cv2.LINE_AA)
                 # calculate for each corner the distance between default corner
                 distance = ut.euclidean_distance(x, y,
                                                  self._previous_default_corner[0],
@@ -155,6 +153,7 @@ class FeatureMatcher:
         self._previous_default_corner = default_corner
 
         if self._show_previous_corners:
+            # draw previous corners (debug)
             if self._previous_default_corner is not None:
                 cv2.circle(moving_img, self._previous_default_corner, 1, cst.COLOR_PURPLE, 20)
             if self._previous_second_corner is not None:
@@ -165,12 +164,12 @@ class FeatureMatcher:
         # detect and track rectangle corners given the default corner
         second_corner, third_corner, fourth_corner = self._findCorners(corners, default_corner)
         if self._show_corners is True:
-            # moving shape corners
+            # draw moving shape corners
             cv2.circle(moving_img, default_corner, 1, cst.COLOR_BLUE, 20)
             cv2.circle(moving_img, second_corner, 1, cst.COLOR_GREEN, 20)
             cv2.circle(moving_img, third_corner, 1, cst.COLOR_YELLOW, 20)
             cv2.circle(moving_img, fourth_corner, 1, cst.COLOR_ORANGE, 20)
-            # static shape corners
+            # draw static shape corners
             cv2.circle(static_img_copy, static_shape_points[0], 1, cst.COLOR_BLUE, 20)
             cv2.circle(static_img_copy, static_shape_points[1], 1, cst.COLOR_GREEN, 20)
             cv2.circle(static_img_copy, static_shape_points[2], 1, cst.COLOR_YELLOW, 20)
