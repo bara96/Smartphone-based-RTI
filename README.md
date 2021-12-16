@@ -33,11 +33,12 @@ to a user-definable light source direction
 Download the assets folder from [here](http://www.dsi.unive.it/~bergamasco/teachingfiles/G3DCV2021_data.7z).  
 Create the <code>assets/</code> folder and extract the <b>G3DCV2021_data</b> archive on the root folder.
 
-## 3. Developed Project
+## 3. Setup Project
 Here a small description of the developed project done, and how it works.  
 First download the <code>assets</code> as described before.
 
 ### 3.1 Libraries
+This project use <b>python 3.7</b>.  
 Download the required project libraries.  
 Here the commands to import required libraries with [conda](https://conda.io/)  
 <code>conda install numpy matplotlib</code>  
@@ -51,19 +52,17 @@ Here the commands to import required libraries with [conda](https://conda.io/)
 <code>conda install scikit-image</code>  
 <code>conda install -c conda-forge python-dotenv</code>  
 
-### 3.2. GPU Libraries (optional)
+#### GPU Libraries (optional)
 <small>Note: this is required to run on GPU</small>  
 <code>conda install numba</code>  
 <code>conda install cudatoolkit</code>  
 
-## 4. Project Structure
+### 3.2 Project Structure
 The project contains the 3 different programs required from the assignment.  
-Each program have a <code>compute()</code> function, that is tunable with some parameters.  
-In order to <b>test</b> each program there is also a <code>main()</code> function, that will simply call the <b>compute()</b> function with some pre-setted parameters. 
 
-### 4.1. Behaviour
+#### Main programs
 1. <code>camera_calibrator.py</code>: basic program that read the two chessboard images and save camera intrinsics into assets folder.
-2. <code>analysis.py</code>: core program that perform different tasks:
+2. <code>analysis.py</code>: core program that perform different tasks, it can require some time to finish (1/2 hours):
    1. <b>sync_videos():</b> extract the audio offset between the static and moving video (required for sync)
    2. <b>generate_video_default_frame():</b> extract and save a default frame from static video (a frame with no light)
    3. <b>extract_video_frames():</b> extract the video frames with the class <b>FeatureMatcher</b>
@@ -78,7 +77,14 @@ In order to <b>test</b> each program there is also a <code>main()</code> functio
 3. <code>interactive_relighting.py</code>: the final program, require the analysis results in order to execute.
 It reads the interpolation results and render the relighted image dynamically based on the light direction specified with the cursor.
 
-### 4.2. Parameters
+#### Utils
+1. <code>audio_utils.py</code>: contains utility functions regarding audio management.
+2. <code>email_utils.py</code>: contains utility functions regarding email management.
+3. <code>image_utils.py</code>: contains utility functions regarding image and video management.
+4. <code>utilities.py</code>: contains misc utility functions.
+
+### 3.3. Parameters
+Each program has some tunable parameters on <b>compute()</b> function:
 1. <code>camera_calibrator.py</code>: no tunable parameters.
 2. <code>analysis.py</code>:
    1. <b>video_name</b>: specify the name of the video to analyze.
@@ -90,4 +96,10 @@ It reads the interpolation results and render the relighted image dynamically ba
    6. <b>debug</b>: specify whether to compute analysis on debug mode (analyze first pixel only on interpolation)
 3. <code>interactive_relighting.py</code>:
    1. <b>video_name</b>: specify the name of the video to relight.
-   2. <b>storage_filepath</b>: specify a different path whether to read <b>analysis()</b> results
+   <b>storage_filepath</b>: specify a different path whether to read <b>analysis()</b> results.
+   
+### 3.4. Run and Test
+Each program have a <code>compute()</code> function.  
+In order to test each program individually there is also a <code>main()</code> function, that will simply call the <b>compute()</b> function with some pre-set parameters.  
+- To run all the 3 programs sequentially from skratch simply use <code>$ python main.py</code>.  
+- To run them separately use <code>$ python {program_name}.py</code>, where <i>program_name</i> is one of the 3 main programs.
