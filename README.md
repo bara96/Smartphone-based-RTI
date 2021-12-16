@@ -85,7 +85,8 @@ It reads the interpolation results and render the relighted image dynamically ba
    2. <b>from_storage</b>: specify whether to read a previous <b>extract_video_frames()</b> results, in this case analysis will start from <b>compute_intensities()</b> phase.
    3. <b>storage_filepath</b>: specify a different path whether to read <b>extract_video_frames()</b> results
    4. <b>interpolate_PTM</b>: specify the interpolation function to use
-   5. <b>notification_email</b>: specify if send a notification email when the computation is finish
+   5. <b>notification_email</b>: specify if send a notification email when the computation is finish.  
+   <b>Note</b> in order to use this parameter you should rename <code>.env.example</code> to <code>.env</code> and fill it with valid google account credentials. The env file is used in order to keep credentials off-repo.
    6. <b>debug</b>: specify whether to compute analysis on debug mode (analyze first pixel only on interpolation)
 3. <code>interactive_relighting.py</code>:
    1. <b>video_name</b>: specify the name of the video to relight.
