@@ -369,7 +369,7 @@ def interpolate_intensities(data, interpolate_PTM=False, first_only=False):
 
 def prepare_images_data(data, first_only=False):
     """
-    Prepare images for each camera position (ly, lx) with interpolated values
+    Prepare images for each camera position (normalized) with interpolated values
     :param data: list of interpolated values for each pixel (y,x) and each light direction (ly,lx)
     interpolation_intensities[y][x][ly][lx] = intensity
     :param first_only: compute only first pixel evaluation
