@@ -1,5 +1,4 @@
 # Import required modules
-import numpy as np
 import constants as cst
 from Utils import audio_utils as aut
 from Utils import image_utils as iut
@@ -9,9 +8,10 @@ from FeatureMatcher import FeatureMatcher
 import os
 import cv2
 import math
-import matplotlib.pyplot as plt
+import numpy as np
+import scipy as sp
 from scipy.interpolate import Rbf
-from scipy.linalg import solve
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from timeit import default_timer as timer
 
@@ -87,7 +87,7 @@ def extract_video_frames(static_video_path, moving_video_path,
                          tot_frames, video_static_offset=0, video_moving_offset=0,
                          default_frame_path="default.png"):
     """
-    Get undistorted frames images from the video_static and extract features
+    Get undistorted frames images from the video_static and extract intensities and camera pose
     :param static_video_path: path to the video_static
     :param moving_video_path: path to the video_moving
     :param tot_frames: total number of frames of the video_static
@@ -109,8 +109,8 @@ def extract_video_frames(static_video_path, moving_video_path,
 
     # starting from offset (for video_static sync)
     frame_static_fps_count = 0
-    frame_static_cursor = video_static_offset  # skip offset
-    frame_moving_cursor = video_moving_offset  # skip offset
+    frame_static_cursor = video_static_offset  # cursor of the static video frames
+    frame_moving_cursor = video_moving_offset  # cursor of the moving video frames
 
     # skip two seconds
     # frame_static_cursor += 60
@@ -119,10 +119,11 @@ def extract_video_frames(static_video_path, moving_video_path,
     start_from_frame = 0  # starting from a given frame
     max_frames_to_read = int(tot_frames / 8)  # set a max n° of frames to read
     offset = max(video_static_offset, video_moving_offset)
-    frame_skip = math.trunc((tot_frames - offset) / max_frames_to_read)
+    frame_skip = math.trunc((tot_frames - offset) / max_frames_to_read)  # how many frames to skip from a read to another
 
     print("Max frames to read:", max_frames_to_read)
 
+    # if start_from_frame > 0, skip frames to start from it
     if 0 < start_from_frame < max_frames_to_read:
         frame_static_cursor += start_from_frame * frame_skip
         frame_moving_cursor += start_from_frame * frame_skip
@@ -258,40 +259,56 @@ def _interpolate_RBF(x_coarse, y_coarse, x_fine, y_fine, intensity_values):
     return rbfi(x_fine, y_fine)
 
 
-def _interpolate_PTM(x_coarse, y_coarse, x_fine, y_fine, intensity_values):
+def _interpolate_PTM(x_coarse, y_coarse, xy_fine, intensity_values):
     """
     interpolate coarse values on fine values domain using Polynomial Texture Maps
-    :param x_coarse:
-    :param y_coarse:
-    :param x_fine:
-    :param y_fine:
+    :param x_coarse: coarse x values
+    :param y_coarse: coarse y values
+    :param xy_fine: fine domain to interpolate
     :param intensity_values:
     :return:
     """
 
-    A_matrix = []
+    '''
+    our system is composed of: l_matrix * a_matrix = L_matrix
+    :var l_matrix: PTM matrix
+    :var L_matrix: luminance matrix
+    :var a_matrix: coefficients matrix
+    '''
+    # compute l_matrix and L_matrix first
+    l_matrix = []
     L_matrix = []
-    results = []
     for i in range(len(intensity_values)):
-        lu = x_coarse[i]
-        lv = y_coarse[i]
-        L = intensity_values[i]
-
+        # compute the PTM row for l_matrix
+        lu, lv = x_coarse[i], y_coarse[i]
         row = (lu ** 2, lv ** 2, lu * lv, lu, lv, 1.)
-        A_matrix.append(row)
-        L_matrix.append(L)
+        l_matrix.append(row)
+        # add Luminance to L_matrix
+        L_matrix.append(intensity_values[i])
 
-    # solve A * a = L
-    A_matrix = np.array(A_matrix)
+    l_matrix = np.array(l_matrix)
     L_matrix = np.array(L_matrix)
-    print("A_matrix", A_matrix.shape)
-    print("L_matrix", L_matrix.shape)
 
-    #a_matrix = np.linalg.lstsq(A_matrix, L_matrix)
-    a_matrix = np.linalg.solve(A_matrix, L_matrix)
-    a_matrix = np.array(a_matrix)
-    print("a_matrix", a_matrix.shape)
-    print(a_matrix)
+    # now we'll fine the a_matrix solving A * a = L
+    # solve with svd decomposition
+    u, s, v = np.linalg.svd(l_matrix)
+    c = np.dot(u.T, L_matrix)
+    w = np.divide(c[:len(s)],s)
+    a_matrix = np.dot(v.T, w)
+
+    # results contains our interpolation result
+    results = np.empty((len(xy_fine), len(xy_fine)))
+    for lv in xy_fine:
+        for lu in xy_fine:
+            # the tuple (lu, lv) means (x, y)
+            l0 = a_matrix[0] * (lu ** 2)
+            l1 = a_matrix[1] * (lv ** 2)
+            l2 = a_matrix[2] * (lu * lv)
+            l3 = a_matrix[3] * lu
+            l4 = a_matrix[4] * lv
+            L = l0 + l1 + l2 + l3 + l4 + a_matrix[5]
+            results[lv][lu] = L
+
     return results
 
 
@@ -333,7 +350,7 @@ def interpolate_intensities(data, interpolate_PTM=False, first_only=False):
 
             if interpolate_PTM:
                 interpolated_intensities[y][x] = _interpolate_PTM(x_coarse=lx, y_coarse=ly,
-                                                                  x_fine=xi, y_fine=yi,
+                                                                  xy_fine=xi[0],
                                                                   intensity_values=val)
             else:
                 interpolated_intensities[y][x] = _interpolate_RBF(x_coarse=lx, y_coarse=ly,

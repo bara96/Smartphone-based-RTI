@@ -127,7 +127,7 @@ def compute(video_name='coin1', storage_filepath=None):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     coin = 1
-    storage_results_save = "assets/interpolation_results_coin{}".format(coin)
+    storage_results_save = "assets/interpolation_results_coin{}_RBF".format(coin)
 
     # start = timer()
     compute(video_name='coin{}'.format(coin), storage_filepath=storage_results_save)
