@@ -119,7 +119,8 @@ def extract_video_frames(static_video_path, moving_video_path,
     start_from_frame = 0  # starting from a given frame
     max_frames_to_read = int(tot_frames / 8)  # set a max n° of frames to read
     offset = max(video_static_offset, video_moving_offset)
-    frame_skip = math.trunc((tot_frames - offset) / max_frames_to_read)  # how many frames to skip from a read to another
+    frame_skip = math.trunc(
+        (tot_frames - offset) / max_frames_to_read)  # how many frames to skip from a read to another
 
     print("Max frames to read:", max_frames_to_read)
 
@@ -293,12 +294,14 @@ def _interpolate_PTM(x_coarse, y_coarse, xy_fine, intensity_values):
     # solve with svd decomposition
     u, s, v = np.linalg.svd(l_matrix)
     c = np.dot(u.T, L_matrix)
-    w = np.divide(c[:len(s)],s)
+    w = np.divide(c[:len(s)], s)
     a_matrix = np.dot(v.T, w)
 
     # results contains our interpolation result
     results = np.empty((len(xy_fine), len(xy_fine)))
+    v = 0
     for lv in xy_fine:
+        u = 0
         for lu in xy_fine:
             # the tuple (lu, lv) means (x, y)
             l0 = a_matrix[0] * (lu ** 2)
@@ -307,7 +310,9 @@ def _interpolate_PTM(x_coarse, y_coarse, xy_fine, intensity_values):
             l3 = a_matrix[3] * lu
             l4 = a_matrix[4] * lv
             L = l0 + l1 + l2 + l3 + l4 + a_matrix[5]
-            results[lv][lu] = L
+            results[v][u] = L
+            u += 1
+        v += 1
 
     return results
 
@@ -406,7 +411,8 @@ def prepare_images_data(data, first_only=False):
     return interpolated_images
 
 
-def compute(video_name='coin1', from_storage=False, storage_filepath=None, interpolate_PTM=False, notification_email=True, debug=False):
+def compute(video_name='coin1', from_storage=False, storage_filepath=None, interpolate_PTM=False,
+            notification_email=True, debug=False):
     """
     Main function
     :param video_name: name of the video to take
@@ -483,7 +489,7 @@ if __name__ == '__main__':
 
     start = timer()
     compute(video_name='coin{}'.format(coin), from_storage=True, storage_filepath=storage_results_save,
-            interpolate_PTM=True, notification_email=True, debug=True)
+            interpolate_PTM=True, notification_email=True, debug=False)
     time = round(timer() - start, 2)
     minutes = int(time / 60)
     seconds = time - (minutes * 60)
