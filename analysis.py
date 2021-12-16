@@ -6,14 +6,17 @@ from Utils import image_utils as iut
 from Utils import email_utils as eut
 from Utils import utilities as ut
 from FeatureMatcher import FeatureMatcher
-from scipy.interpolate import Rbf
 import os
 import cv2
 import math
 import matplotlib.pyplot as plt
+from scipy.interpolate import Rbf
+from scipy.linalg import solve
 from tqdm import tqdm
 from timeit import default_timer as timer
-from numba import numba, jit, cuda
+
+
+# from numba import numba, jit, cuda
 
 
 def generate_video_default_frame(video_path, calibration_file_path, file_name='default'):
@@ -265,8 +268,31 @@ def _interpolate_PTM(x_coarse, y_coarse, x_fine, y_fine, intensity_values):
     :param intensity_values:
     :return:
     """
-    rbfi = Rbf(x_coarse, y_coarse, intensity_values, function='linear')
-    return rbfi(x_fine, y_fine)
+
+    A_matrix = []
+    L_matrix = []
+    results = []
+    for i in range(len(intensity_values)):
+        lu = x_coarse[i]
+        lv = y_coarse[i]
+        L = intensity_values[i]
+
+        row = (lu ** 2, lv ** 2, lu * lv, lu, lv, 1.)
+        A_matrix.append(row)
+        L_matrix.append(L)
+
+    # solve A * a = L
+    A_matrix = np.array(A_matrix)
+    L_matrix = np.array(L_matrix)
+    print("A_matrix", A_matrix.shape)
+    print("L_matrix", L_matrix.shape)
+
+    #a_matrix = np.linalg.lstsq(A_matrix, L_matrix)
+    a_matrix = np.linalg.solve(A_matrix, L_matrix)
+    a_matrix = np.array(a_matrix)
+    print("a_matrix", a_matrix.shape)
+    print(a_matrix)
+    return results
 
 
 # @jit(forceobj=True)
@@ -277,7 +303,7 @@ def interpolate_intensities(data, interpolate_PTM=False, first_only=False):
     pixels_lx: list of lx coordinates for each value, for the current pixel
     pixels_ly: list of ly coordinates for each value, for the current pixel
     pixels_intensity: list of intensities, for current pixel
-    :param interpolate_PTM: if True use PTM as interpolation function, otherwise use RFB
+    :param interpolate_PTM: if True use PTM as interpolation function, otherwise use RBF
     :param first_only: compute and show only first pixel evaluation
     :return: an array of interpolated values for each pixel and light vector: interpolated_intensities[y][x][ly][lx] => intensity
     """
@@ -363,12 +389,13 @@ def prepare_images_data(data, first_only=False):
     return interpolated_images
 
 
-def compute(video_name='coin1', from_storage=False, storage_filepath=None, notification_email=True, debug=False):
+def compute(video_name='coin1', from_storage=False, storage_filepath=None, interpolate_PTM=False, notification_email=True, debug=False):
     """
     Main function
     :param video_name: name of the video to take
     :param from_storage: if True read results from a saved file, otherwise compute results from skratch
     :param storage_filepath: if None is set read results from default filepath, otherwise it must be a filepath to a valid results file
+    :param interpolate_PTM: use PTM interpolation function instead of RBF
     :param notification_email: send a notification email when finished
     :param debug: compute a debug run with only the first pixel
     """
@@ -416,7 +443,7 @@ def compute(video_name='coin1', from_storage=False, storage_filepath=None, notif
     data = compute_intensities(results_frames, first_only=debug)
 
     ut.console_log("Step 3: Computing interpolation", 'blue', newline=True)
-    results_interpolation = interpolate_intensities(data, interpolate_PTM=True, first_only=debug)
+    results_interpolation = interpolate_intensities(data, interpolate_PTM=interpolate_PTM, first_only=debug)
 
     ut.console_log("Step 4: Preparing images data", 'blue', newline=True)
     results_images = prepare_images_data(results_interpolation, first_only=debug)
@@ -438,7 +465,8 @@ if __name__ == '__main__':
     storage_results_save = "assets/frames_results_coin{}".format(coin)
 
     start = timer()
-    compute(video_name='coin{}'.format(coin), from_storage=True, debug=True, storage_filepath=storage_results_save)
+    compute(video_name='coin{}'.format(coin), from_storage=True, storage_filepath=storage_results_save,
+            interpolate_PTM=True, notification_email=True, debug=True)
     time = round(timer() - start, 2)
     minutes = int(time / 60)
     seconds = time - (minutes * 60)
