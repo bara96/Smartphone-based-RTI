@@ -1,7 +1,8 @@
 .idea/
 samples/__pycache__/
 __pycache__/
-assets/G3DCV2021_data
+.env
+assets/G3DCV2021_data/cam1 - static/*.mov
+assets/G3DCV2021_data/cam2 - moving light/*.mp4
 assets/interpolation_results_*
 *.wav
-.env
