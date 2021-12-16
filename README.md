@@ -32,7 +32,7 @@ to a user-definable light source direction
 ### 2.2. Assets
 Download the assets folder from [here](http://www.dsi.unive.it/~bergamasco/teachingfiles/G3DCV2021_data.7z).  
 Create the <code>assets/</code> folder and extract the <b>G3DCV2021_data</b> archive on the root folder.  
-The <code>G3DCV2021_data</code> folder is also stored on the repository into the <b>assets</b> release.  
+The <code>G3DCV2021_data</code> folder is also stored on the repository into the assets [release](https://github.com/bara96/Smartphone-based-RTI/releases/tag/assets).  
 
 ## 3. Setup Project
 Here a small description of the developed project done, and how it works.  
